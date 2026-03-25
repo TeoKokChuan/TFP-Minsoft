@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout — Minsoft Solution</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+:root {
+  --sky: #38bdf8;
+  --sky-light: #7dd3fc;
+  --accent: #a78bfa;
+  --bg: #060d1c;
+  --bg-card: #0b1628;
+  --bg-surface: #101e34;
+  --bg-input: #0d1a2e;
+  --text: #e2ecff;
+  --text-muted: #7a93b5;
+  --border: rgba(56,189,248,0.1);
+  --border-md: rgba(56,189,248,0.2);
+  --border-strong: rgba(56,189,248,0.35);
+  --green: #4ade80;
+}
+ 
+html, body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+ 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 62px;
+  background: rgba(6,13,28,0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+ 
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--sky);
+  text-decoration: none;
+  letter-spacing: -0.5px;
+}
+ 
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.breadcrumb span.active { color: var(--text); font-weight: 500; }
+.breadcrumb i { font-size: 0.65rem; }
+ 
+.secure-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.secure-badge i { color: var(--green); font-size: 0.8rem; }
+ 
+/* STEPS */
+.steps-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 24px 24px;
+}
+.step {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.82rem; font-weight: 500;
+  color: var(--text-muted);
+}
+.step.active { color: var(--sky); }
+.step.done { color: var(--green); }
+.step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 700;
+  flex-shrink: 0;
+}
+.step.active .step-num {
+  background: var(--sky);
+  color: var(--bg);
+  border-color: var(--sky);
+}
+.step.done .step-num {
+  background: var(--green);
+  color: var(--bg);
+  border-color: var(--green);
+}
+.step-line {
+  width: 60px; height: 1px;
+  background: var(--border);
+  margin: 0 12px;
+}
+ 
+/* MAIN LAYOUT */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+  align-items: start;
+  width: 100%;
+  box-sizing: border-box;
+}
+ 
+/* PANEL */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 28px;
+  animation: fadeUp 0.4s ease both;
+}
+ 
+.panel + .panel { margin-top: 20px; }
+ 
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+ 
+.panel-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-title i {
+  color: var(--sky);
+  font-size: 0.9rem;
+  width: 30px; height: 30px;
+  background: rgba(56,189,248,0.1);
+  border: 1px solid var(--border-md);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+ 
+/* FORM */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+ 
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+ 
+.field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+ 
+.input-wrap { position: relative; }
+.input-wrap i {
+  position: absolute;
+  left: 13px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+ 
+.field input, .field select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  appearance: none;
+}
+ 
+.field input.has-icon, .field select.has-icon {
+  padding-left: 36px;
+}
+ 
+.field input::placeholder { color: rgba(122,147,181,0.45); }
+.field input:focus, .field select:focus {
+  border-color: var(--sky);
+  background: rgba(56,189,248,0.04);
+}
+ 
+/* Card number with card type icon */
+.card-icons {
+  position: absolute;
+  right: 12px; top: 50%;
+  transform: translateY(-50%);
+  display: flex; gap: 5px;
+}
+.card-icon {
+  width: 28px; height: 18px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; color: var(--text-muted);
+  font-weight: 700;
+}
+ 
+/* PAYMENT TABS */
+.payment-tabs {
+  display: flex; gap: 10px;
+  margin-bottom: 22px;
+}
+.pay-tab {
+  flex: 1;
+  padding: 10px;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+.pay-tab.active {
+  border-color: var(--sky);
+  background: rgba(56,189,248,0.07);
+  color: var(--sky);
+}
+.pay-tab i { font-size: 0.9rem; }
+ 
+/* ORDER SUMMARY */
+.order-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  transition: border-color 0.2s;
+}
+.order-item:hover { border-color: var(--border-md); }
+.order-item:last-of-type { margin-bottom: 0; }
+ 
+.item-thumb {
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  background: rgba(56,189,248,0.08);
+  border: 1px solid var(--border-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; flex-shrink: 0;
+}
+.item-info { flex: 1; }
+.item-info p { font-size: 0.88rem; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.item-info small { font-size: 0.76rem; color: var(--text-muted); }
+.item-price {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+.item-qty {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+ 
+/* PROMO */
+.promo-row {
+  display: flex; gap: 10px;
+  margin: 18px 0;
+}
+.promo-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.promo-input::placeholder { color: rgba(122,147,181,0.4); }
+.promo-input:focus { border-color: var(--sky); }
+.promo-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-md);
+  border-radius: 8px;
+  color: var(--sky);
+  padding: 10px 18px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.promo-btn:hover { background: rgba(56,189,248,0.1); border-color: var(--sky); }
+ 
+/* DIVIDER */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+ 
+/* LINE ITEMS */
+.line-item {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  color: var(--text-muted);
+}
+.line-item span:last-child { color: var(--text); }
+.line-item.free span:last-child { color: var(--green); font-weight: 500; }
+.line-item.total {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.1rem;
+  padding: 6px 0;
+}
+.line-item.total span:first-child { color: var(--text); font-weight: 600; }
+.line-item.total span:last-child { color: var(--sky); font-size: 1.25rem; }
+ 
+/* PLACE ORDER */
+.order-btn {
+  width: 100%;
+  background: var(--sky);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 15px;
+  font-family: 'Syne', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 18px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: background 0.2s, transform 0.15s;
+  letter-spacing: 0.3px;
+}
+.order-btn:hover { background: var(--sky-light); transform: translateY(-1px); }
+.order-btn:active { transform: translateY(0); }
+ 
+.trust-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 18px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.trust-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+}
+.trust-item i { font-size: 0.8rem; }
+.trust-item.green i { color: var(--green); }
+.trust-item.sky i { color: var(--sky); }
+ 
+.notice {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(74,222,128,0.06);
+  border: 1px solid rgba(74,222,128,0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 18px;
+  font-size: 0.8rem;
+  color: #86efac;
+}
+.notice i { margin-top: 1px; flex-shrink: 0; }
+ 
+@media (max-width: 860px) {
+  .topbar { padding: 0 24px; }
+  .breadcrumb { display: none; }
+  .steps-bar { padding: 20px 24px; }
+  .page { grid-template-columns: 1fr; padding: 0 20px 60px; }
+  .form-row.triple { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+  .form-row { grid-template-columns: 1fr; }
+  .form-row.triple { grid-template-columns: 1fr; }
+  .payment-tabs { flex-direction: column; }
+  .step-line { width: 30px; }
+}
+</style>
+</head>
+<body>
+ 
+<header class="topbar">
+  <a href="#" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
+  <div class="breadcrumb">
+    <span>Cart</span>
+    <i class="fas fa-chevron-right"></i>
+    <span class="active">Checkout</span>
+    <i class="fas fa-chevron-right"></i>
+    <span>Confirmation</span>
+  </div>
+  <div class="secure-badge">
+    <i class="fas fa-lock"></i> 
+  </div>
+</header>
+ 
+<div class="steps-bar">
+  <div class="step done">
+    <div class="step-num"><i class="fas fa-check" style="font-size:0.65rem;"></i></div>
+    Cart
+  </div>
+  <div class="step-line"></div>
+  <div class="step active">
+    <div class="step-num">2</div>
+    Checkout
+  </div>
+  <div class="step-line"></div>
+  <div class="step">
+    <div class="step-num">3</div>
+    Confirmation
+  </div>
+</div>
+ 
+<div class="page">
+  <div>
+
+    <div class="panel" style="animation-delay:0.05s">
+      <div class="panel-title">
+        <i class="fas fa-user"></i>
+        Contact Information
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>First Name</label>
+          <div class="input-wrap">
+            <input type="text" placeholder="John">
+          </div>
+        </div>
+        <div class="field">
+          <label>Last Name</label>
+          <div class="input-wrap">
+            <input type="text" placeholder="Doe">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Email Address</label>
+        <div class="input-wrap">
+          <i class="fas fa-envelope"></i>
+          <input type="email" class="has-icon" placeholder="john@email.com">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Phone Number</label>
+        <div class="input-wrap">
+          <i class="fas fa-phone"></i>
+          <input type="tel" class="has-icon" placeholder="+60 12-345 6789">
+        </div>
+      </div>
+    </div>
+ 
+    
+    <div class="panel" style="animation-delay:0.3s">
+      <div class="panel-title">
+        <i class="fas fa-location-dot"></i>
+        Delivery Address
+      </div>
+      <div class="field">
+        <label>Street Address</label>
+        <div class="input-wrap">
+          <i class="fas fa-house"></i>
+          <input type="text" class="has-icon" placeholder="No. 12, Jalan Setia...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Address Line 2 <span style="color:var(--text-muted);font-weight:300;font-size:0.7rem;">(optional)</span></label>
+        <input type="text" placeholder="Apartment, suite, unit...">
+      </div>
+      <div class="form-row triple">
+        <div class="field" style="margin-bottom:0">
+          <label>City</label>
+          <input type="text" placeholder="Johor Bahru">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>State</label>
+          <select class="has-icon">
+            <option value="">Select</option>
+            <option selected>Johor</option>
+            <option>Selangor</option>
+            <option>Kuala Lumpur</option>
+            <option>Penang</option>
+            <option>Sabah</option>
+            <option>Sarawak</option>
+            <option>Melaka</option>
+            <option>Sembilan</option>
+            <option>Kedah</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Postcode</label>
+          <input type="text" placeholder="80000">
+        </div>
+      </div>
+    </div>
+ 
+    <div class="panel" style="animation-delay:0.15s">
+      <div class="panel-title">
+        <i class="fas fa-credit-card"></i>
+        Payment Method
+      </div>
+ 
+      <div class="payment-tabs">
+        <button class="pay-tab active" onclick="selectTab(this)">
+          <i class="fas fa-credit-card"></i> Credit / Debit
+        </button>
+        <button class="pay-tab" onclick="selectTab(this)">
+          <i class="fas fa-mobile-alt"></i> FPX / Online
+        </button>
+        <button class="pay-tab" onclick="selectTab(this)">
+          <i class="fas fa-wallet"></i> eWallet
+        </button>
+      </div>
+ 
+      <div class="field">
+        <label>Card Number</label>
+        <div class="input-wrap">
+          <i class="fas fa-hashtag"></i>
+          <input type="text" class="has-icon" placeholder="4242 4242 4242 4242" style="padding-right: 90px;" maxlength="19">
+          <div class="card-icons">
+            <div class="card-icon">VISA</div>
+            <div class="card-icon">MC</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Name on Card</label>
+        <input type="text" placeholder="JOHN DOE" style="text-transform:uppercase;letter-spacing:1px;">
+      </div>
+      <div class="form-row" style="margin-bottom:0;">
+        <div class="field" style="margin-bottom:0">
+          <label>Expiry Date</label>
+          <div class="input-wrap">
+            <i class="fas fa-calendar"></i>
+            <input type="text" class="has-icon" placeholder="MM / YY" maxlength="7">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>CVV <i class="fas fa-circle-question" style="color:var(--text-muted);font-size:0.75rem;cursor:help;" title="3 digits on the back of your card"></i></label>
+          <div class="input-wrap">
+            <i class="fas fa-lock"></i>
+            <input type="password" class="has-icon" placeholder="•••" maxlength="4">
+          </div>
+        </div>
+      </div>
+    </div>
+ 
+  </div>
+ 
+  <div>
+    <div class="panel" style="animation-delay:0.2s; position: sticky; top: 86px;">
+      <div class="panel-title">
+        <i class="fas fa-bag-shopping"></i>
+        Order Summary
+      </div>
+ 
+      <div class="order-item">
+        <div class="item-thumb">💻</div>
+        <div class="item-info">
+          <p>Dell Inspiron 15</p>
+          <small>Intel i5 · 16GB RAM · 512GB SSD</small>
+        </div>
+        <div class="item-price">
+          RM 3,500
+          <div class="item-qty">×1</div>
+        </div>
+      </div>
+      <div class="order-item">
+        <div class="item-thumb">🖱️</div>
+        <div class="item-info">
+          <p>Wireless Mouse Pro</p>
+          <small>Bluetooth 5.0 · Ergonomic</small>
+        </div>
+        <div class="item-price">
+          RM 50
+          <div class="item-qty">×1</div>
+        </div>
+      </div>
+
+ 
+      <hr class="divider">
+ 
+      <div class="line-item">
+        <span>Subtotal (2 items)</span>
+        <span>RM 3,550</span>
+      </div>
+      <div class="line-item free">
+        <span>Shipping</span>
+        <span>Free</span>
+      </div>
+      <div class="line-item">
+        <span>Tax (6% SST)</span>
+        <span>RM 213</span>
+      </div>
+ 
+      <hr class="divider">
+ 
+      <div class="line-item total">
+        <span>Total</span>
+        <span>RM 3,763</span>
+      </div>
+ 
+      <button class="order-btn" onclick="handleOrder(this)">
+        <i class="fas fa-lock" style="font-size:0.85rem;"></i>
+        Place Order &nbsp;→
+      </button>
+ 
+    </div>
+  </div>
+ 
+</div>
+ 
+<script>
+function selectTab(el) {
+  document.querySelectorAll('.pay-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+ 
+function handleOrder(btn) {
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:0.85rem;"></i> Processing…';
+  btn.style.background = '#0ea5e9';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.innerHTML = '<i class="fas fa-check" style="font-size:0.85rem;"></i> Order Placed!';
+    btn.style.background = '#4ade80';
+    btn.style.color = '#050c1a';
+  }, 2000);
+}
+ 
+// Card number formatting
+document.querySelector('input[maxlength="19"]').addEventListener('input', function(e) {
+  let v = e.target.value.replace(/\D/g, '').substring(0, 16);
+  e.target.value = v.replace(/(.{4})/g, '$1 ').trim();
+});
+ 
+// Expiry formatting
+document.querySelector('input[maxlength="7"]').addEventListener('input', function(e) {
+  let v = e.target.value.replace(/\D/g, '').substring(0, 4);
+  if (v.length >= 3) v = v.substring(0, 2) + ' / ' + v.substring(2);
+  e.target.value = v;
+});
+</script>
+ 
+</body>
+</html>
