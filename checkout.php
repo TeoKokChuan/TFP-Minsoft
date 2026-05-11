@@ -1,343 +1,287 @@
+<?php
+session_start();
+
+$errors = [];
+$v      = [];  // repopulate values after failed submit
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $v['first_name'] = trim($_POST['first_name'] ?? '');
+    $v['last_name']  = trim($_POST['last_name']  ?? '');
+    $v['email']      = trim($_POST['email']      ?? '');
+    $v['phone']      = trim($_POST['phone']      ?? '');
+    $v['address1']   = trim($_POST['address1']   ?? '');
+    $v['address2']   = trim($_POST['address2']   ?? '');
+    $v['city']       = trim($_POST['city']       ?? '');
+    $v['state']      = trim($_POST['state']      ?? '');
+    $v['postcode']   = trim($_POST['postcode']   ?? '');
+
+    // ── Validation rules ───────────────────────────────────────────────
+    if ($v['first_name'] === '')
+        $errors['first_name'] = 'First name is required.';
+    elseif (!preg_match('/^[a-zA-Z\s\'-]+$/', $v['first_name']))
+        $errors['first_name'] = 'First name may only contain letters.';
+
+    if ($v['last_name'] === '')
+        $errors['last_name'] = 'Last name is required.';
+    elseif (!preg_match('/^[a-zA-Z\s\'-]+$/', $v['last_name']))
+        $errors['last_name'] = 'Last name may only contain letters.';
+
+    if ($v['email'] === '')
+        $errors['email'] = 'Email address is required.';
+    elseif (!filter_var($v['email'], FILTER_VALIDATE_EMAIL))
+        $errors['email'] = 'Please enter a valid email address (e.g. john@email.com).';
+
+    if ($v['phone'] === '')
+        $errors['phone'] = 'Phone number is required.';
+    elseif (!preg_match('/^[+0-9\s\-()]{7,20}$/', $v['phone']))
+        $errors['phone'] = 'Enter a valid phone number (e.g. +60 12-345 6789).';
+
+    if ($v['address1'] === '')
+        $errors['address1'] = 'Street address is required.';
+
+    if ($v['city'] === '')
+        $errors['city'] = 'City is required.';
+    elseif (!preg_match('/^[a-zA-Z\s\'-]+$/', $v['city']))
+        $errors['city'] = 'City name may only contain letters.';
+
+    if ($v['state'] === '')
+        $errors['state'] = 'Please select a state.';
+
+    if ($v['postcode'] === '')
+        $errors['postcode'] = 'Postcode is required.';
+    elseif (!preg_match('/^\d{5}$/', $v['postcode']))
+        $errors['postcode'] = 'Postcode must be exactly 5 digits.';
+
+    // ── On success: save to session and redirect ───────────────────────
+    if (empty($errors)) {
+        $_SESSION['checkout'] = $v;
+        header('Location: paymentcheckout.php');
+        exit;
+    }
+}
+
+// Helper: render an inline error message
+function err($field, $errors) {
+    if (isset($errors[$field])) {
+        echo '<div class="field-error"><span class="field-error-icon">⚠</span>' . htmlspecialchars($errors[$field]) . '</div>';
+    }
+}
+
+// Helper: add is-error class if field has error
+function errClass($field, $errors) {
+    return isset($errors[$field]) ? ' is-error' : '';
+}
+
+// Helper: safely output repopulated value
+function val($field, $v) {
+    return htmlspecialchars($v[$field] ?? '');
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Checkout — Minsoft Solution</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background: #ffffff;
-  color: #111;
-  min-height: 100vh;
-  font-size: 15px;
-  line-height: 1.6;
-}
+body { background-color: #f8f9fa; color: #222; min-height: 100vh; font-size: 15px; line-height: 1.6; }
 
 /* ── Topbar ── */
 .topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  height: 62px;
-  background: #020617;
-  border-bottom: 1px solid #e0e0e0;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 30px; height: 62px;
+  background: #fff; border-bottom: 1px solid #eee;
+  position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.04);
 }
-.logo {
-  font-family: 'Segoe UI', sans-serif;
-  font-weight: 800;
-  font-size: 1.25rem;
-  color: #1d6fd8;
-  text-decoration: none;
-  letter-spacing: -0.5px;
-}
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: #777;
-}
-.breadcrumb span.active { color: #111; font-weight: 500; }
-
+.logo { font-weight: 800; font-size: 1.25rem; color: #007bff; text-decoration: none; letter-spacing: -0.5px; }
+.breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #aaa; }
+.breadcrumb span.active { color: #222; font-weight: 600; }
 .profile-btn {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: #e8f0fb;
-  border: 1.5px solid #c5d8f5;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #f0f6ff; border: 1.5px solid #cce0ff;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  cursor: pointer; transition: 0.3s;
 }
-.profile-btn:hover { background: #d0e4f8; border-color: #1d6fd8; }
-.profile-btn svg { width: 18px; height: 18px; fill: #1d6fd8; }
+.profile-btn:hover { background: #dbeeff; border-color: #007bff; }
+.profile-btn svg { width: 18px; height: 18px; fill: #007bff; }
 
 /* ── Steps ── */
-.steps-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.step {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 0.82rem; font-weight: 500;
-  color: #aaa;
-}
-.step.active { color: #1d6fd8; }
-.step.done   { color: #2a7a2a; }
+.steps-bar { display: flex; align-items: center; justify-content: center; padding: 24px 20px; }
+.step { display: flex; align-items: center; gap: 10px; font-size: 0.82rem; font-weight: 600; color: #bbb; }
+.step.active { color: #007bff; }
+.step.done   { color: #28a745; }
 .step-num {
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid currentColor;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.72rem; font-weight: 700; flex-shrink: 0;
 }
-.step.active .step-num { background: #1d6fd8; color: #fff; border-color: #1d6fd8; }
-.step.done   .step-num { background: #2a7a2a; color: #fff; border-color: #2a7a2a; }
-.step-line { width: 60px; height: 1px; background: #e0e0e0; margin: 0 12px; }
+.step.active .step-num { background: #007bff; color: #fff; border-color: #007bff; }
+.step.done   .step-num { background: #28a745; color: #fff; border-color: #28a745; }
+.step-line { width: 60px; height: 2px; background: #eee; margin: 0 10px; }
 
-/* ── Page Layout ── */
+/* ── Page layout ── */
 .page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 24px;
-  max-width: 1000px;
+  grid-template-columns: minmax(0, 1fr) 460px;
+  gap: 28px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 24px 80px;
+  padding: 30px 40px 80px;
   align-items: start;
 }
 
 /* ── Panels ── */
 .panel {
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 14px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #eaeaea;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
   padding: 28px;
   margin-bottom: 20px;
-  animation: fadeUp 0.4s ease both;
-}
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  transition: box-shadow 0.3s;
 }
 .panel-title {
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 1.05rem; font-weight: 700;
-  color: #111;
-  margin-bottom: 22px;
-  display: flex; align-items: center; gap: 10px;
+  font-size: 1rem; font-weight: 700; color: #111;
+  margin-bottom: 22px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid #f0f0f0; padding-bottom: 14px;
 }
 .panel-title-icon {
-  width: 30px; height: 30px;
-  border-radius: 8px;
-  background: #e8f0fb;
-  border: 1px solid #c5d8f5;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.85rem; color: #1d6fd8;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: #f0f6ff; border: 1px solid #cce0ff;
+  display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
 }
+
+/* ── Error banner ── */
+.error-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff5f5; border: 1px solid #f5c6cb;
+  border-radius: 8px; padding: 11px 14px; margin-bottom: 20px;
+  font-size: 0.83rem; color: #dc3545;
+}
+.error-banner-icon { font-size: 1rem; flex-shrink: 0; }
 
 /* ── Form ── */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
 .field { margin-bottom: 14px; }
 .field:last-child { margin-bottom: 0; }
-.field label {
-  display: block;
-  font-size: 0.75rem; font-weight: 500;
-  color: #555; margin-bottom: 6px;
-}
+.field label { display: block; font-size: 0.78rem; font-weight: 600; color: #555; margin-bottom: 6px; }
 .field input, .field select {
-  width: 100%;
-  background: #ffffff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 9px 13px;
-  color: #111;
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 0.9rem;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  appearance: none;
+  width: 100%; background: #fff; border: 1px solid #ddd;
+  border-radius: 8px; padding: 10px 13px;
+  color: #222; font-family: 'Segoe UI', sans-serif; font-size: 0.9rem;
+  outline: none; transition: 0.3s; appearance: none;
 }
-.field input:focus, .field select:focus {
-  border-color: #1d6fd8;
-  box-shadow: 0 0 0 3px rgba(29,111,216,0.1);
-}
+.field input:focus, .field select:focus { border-color: #007bff; box-shadow: 0 0 0 3px rgba(0,123,255,0.1); }
 .field input::placeholder { color: #bbb; }
+.field input.is-error, .field select.is-error { border-color: #dc3545; box-shadow: 0 0 0 3px rgba(220,53,69,0.1); }
+.field-error { display: flex; align-items: center; gap: 5px; font-size: 0.73rem; color: #dc3545; margin-top: 5px; }
+.field-error-icon { font-size: 0.7rem; flex-shrink: 0; }
 
-/* ── Order Summary ── */
-.order-items-scroll {
-  max-height: 200px;
-  overflow-y: auto;
-  padding-right: 4px;
-  margin-bottom: 4px;
-}
-.order-items-scroll::-webkit-scrollbar { width: 4px; }
-.order-items-scroll::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 4px; }
-.order-items-scroll::-webkit-scrollbar-thumb { background: #c5d8f5; border-radius: 4px; }
+/* ── Order Summary items ── */
+.order-items-list { max-height: 260px; overflow-y: auto; padding-right: 4px; margin-bottom: 4px; }
+.order-items-list::-webkit-scrollbar { width: 4px; }
+.order-items-list::-webkit-scrollbar-track { background: #f8f9fa; border-radius: 4px; }
+.order-items-list::-webkit-scrollbar-thumb { background: #cce0ff; border-radius: 4px; }
 
 .order-item {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px;
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  transition: border-color 0.2s;
+  padding: 10px; background: #fff;
+  border: 1px solid #eaeaea; border-radius: 12px;
+  margin-bottom: 8px; transition: 0.3s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 .order-item:last-child { margin-bottom: 0; }
-.order-item:hover { border-color: #c5d8f5; }
-
+.order-item:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.06); border-color: #007bff; }
 .item-thumb {
-  width: 42px; height: 42px;
-  border-radius: 9px;
-  background: #eef3fc;
-  border: 1px solid #d0e2f8;
+  width: 52px; height: 52px; border-radius: 8px;
+  background: #f8f9fa; border: 1px solid #eee;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1.2rem; flex-shrink: 0;
+  font-size: 1.5rem; flex-shrink: 0; overflow: hidden;
 }
+.item-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
 .item-info { flex: 1; }
-.item-info p { font-size: 0.87rem; font-weight: 500; color: #111; margin-bottom: 2px; }
-.item-info small { font-size: 0.74rem; color: #777; }
-.item-price {
-  font-size: 0.9rem; font-weight: 600;
-  color: #111; text-align: right; white-space: nowrap;
-}
-.item-qty { font-size: 0.68rem; color: #999; margin-top: 1px; }
-
+.item-info p { font-size: 0.87rem; font-weight: 600; color: #111; margin-bottom: 2px; }
+.item-info small { font-size: 0.74rem; color: #aaa; }
+.item-price { font-size: 0.9rem; font-weight: 800; color: #000; text-align: right; white-space: nowrap; }
+.item-qty { font-size: 0.68rem; color: #aaa; margin-top: 1px; }
 .remove-btn {
-  background: transparent;
-  border: 1px solid rgba(220,60,60,0.25);
-  border-radius: 5px;
-  color: #c0392b;
-  cursor: pointer;
-  padding: 4px 7px;
-  font-size: 0.68rem;
-  margin-left: 4px;
-  transition: background 0.15s;
-  white-space: nowrap;
+  background: transparent; border: 1px solid #f5c6cb;
+  border-radius: 6px; color: #dc3545; cursor: pointer;
+  padding: 4px 8px; font-size: 0.68rem; margin-left: 4px; transition: 0.3s; white-space: nowrap;
 }
-.remove-btn:hover { background: rgba(220,60,60,0.08); }
+.remove-btn:hover { background: #fff5f5; border-color: #dc3545; }
 
-/* ── Divider & Line Items ── */
-.divider { border: none; border-top: 1px solid #e5e5e5; margin: 14px 0; }
+/* ── Divider & totals ── */
+.divider { border: none; border-top: 1px solid #eee; margin: 14px 0; }
+.line-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 5px 0; color: #888; }
+.line-item span:last-child { color: #222; font-weight: 600; }
+.line-item.free span:last-child { color: #28a745; }
+.line-item.total { font-size: 1.05rem; padding: 6px 0; }
+.line-item.total span:first-child { color: #111; font-weight: 700; }
+.line-item.total span:last-child  { color: #007bff; font-size: 1.2rem; font-weight: 800; }
 
-.line-item {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 0.85rem; padding: 4px 0; color: #666;
-}
-.line-item span:last-child { color: #111; }
-.line-item.free span:last-child { color: #2a7a2a; font-weight: 500; }
-.line-item.total { font-size: 1.05rem; padding: 5px 0; }
-.line-item.total span:first-child { color: #111; font-weight: 600; }
-.line-item.total span:last-child  { color: #1d6fd8; font-size: 1.2rem; font-weight: 700; }
-
-/* ── Place Order Button ── */
+/* ── Place Order button ── */
 .order-btn {
-  width: 100%;
-  background: #1d6fd8;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 14px;
-  font-family: 'Segoe UI', sans-serif;
-  font-size: 1rem; font-weight: 700;
-  cursor: pointer;
-  margin-top: 16px;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  transition: background 0.2s, transform 0.15s;
-  letter-spacing: 0.3px;
-}
-.order-btn:hover  { background: #155bb5; transform: translateY(-1px); }
-.order-btn:active { transform: translateY(0); }
-.order-btn:disabled { background: #aaa; opacity: 0.5; cursor: not-allowed; transform: none; }
-
-/* ── Modals shared ── */
-.modal-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 1000;
-  align-items: center; justify-content: center;
-  padding: 24px;
-}
-.modal-box {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 16px;
-  padding: 28px;
-  width: 100%; max-width: 400px;
-  animation: fadeUp 0.25s ease both;
-}
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 20px;
-}
-.modal-title {
-  font-size: 1rem; font-weight: 700; color: #111;
-  display: flex; align-items: center; gap: 8px;
-}
-.modal-title-icon {
-  width: 30px; height: 30px; border-radius: 8px;
-  background: #e8f0fb; border: 1px solid #c5d8f5;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.78rem;
-}
-.modal-close-btn {
-  width: 28px; height: 28px; border-radius: 6px;
-  border: 1px solid #ddd; background: transparent;
-  color: #888; cursor: pointer; font-size: 13px;
-  transition: background 0.15s;
-}
-.modal-close-btn:hover { background: #f0f0f0; }
-
-.modal-item {
-  background: #f8f8f8; border-radius: 8px;
-  border: 1px solid #eee; padding: 10px;
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 8px;
-}
-.modal-item-thumb {
-  width: 40px; height: 40px; border-radius: 8px;
-  background: #eef3fc; border: 1px solid #d0e2f8;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.05rem; flex-shrink: 0;
-}
-
-.btn-confirm {
-  width: 100%; padding: 13px;
-  background: #1d6fd8; border: none; border-radius: 8px;
-  color: #fff; font-size: 0.95rem; font-weight: 700;
+  width: 100%; background-color: #111; color: #fff; border: none;
+  border-radius: 8px; padding: 12px;
+  font-size: 0.95rem; font-weight: 600;
   cursor: pointer; margin-top: 16px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  transition: background 0.2s;
+  transition: 0.3s;
 }
-.btn-confirm:hover { background: #155bb5; }
-.btn-confirm:disabled { background: #1555a0; opacity: 0.8; cursor: not-allowed; }
+.order-btn:hover  { background-color: #007bff; }
+.order-btn:disabled { background: #ccc; cursor: not-allowed; }
 
+/* ── Modals ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 1000;
+  align-items: center; justify-content: center; padding: 24px;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; border: 1px solid #eaeaea;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+  padding: 28px; width: 100%; max-width: 420px;
+}
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.modal-title { font-size: 1rem; font-weight: 700; color: #111; display: flex; align-items: center; gap: 8px; }
+.modal-title-icon { width: 30px; height: 30px; border-radius: 8px; background: #f0f6ff; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.modal-close-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #eee; background: transparent; color: #888; cursor: pointer; font-size: 13px; transition: 0.2s; }
+.modal-close-btn:hover { background: #f8f9fa; }
+.modal-item { background: #f8f9fa; border-radius: 10px; border: 1px solid #eaeaea; padding: 10px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.modal-item-thumb { width: 40px; height: 40px; border-radius: 8px; background: #fff; border: 1px solid #eee; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+
+.btn-confirm {
+  width: 100%; padding: 12px; background: #111; border: none; border-radius: 8px;
+  color: #fff; font-size: 0.92rem; font-weight: 600; cursor: pointer; margin-top: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.3s;
+}
+.btn-confirm:hover { background: #007bff; }
+.btn-confirm:disabled { background: #aaa; cursor: not-allowed; }
 .btn-secondary {
-  width: 100%; padding: 11px;
-  background: transparent;
-  border: 1px solid #ddd; border-radius: 8px;
-  color: #777; font-size: 0.85rem; cursor: pointer; margin-top: 8px;
-  transition: background 0.15s;
+  width: 100%; padding: 10px; background: transparent;
+  border: 1px solid #eee; border-radius: 8px;
+  color: #888; font-size: 0.85rem; cursor: pointer; margin-top: 8px; transition: 0.3s;
 }
-.btn-secondary:hover { background: #f5f5f5; }
+.btn-secondary:hover { background: #f8f9fa; border-color: #ddd; color: #555; }
 
-/* ── Remove-confirm modal ── */
-.remove-modal-icon {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: #fff0f0; border: 1.5px solid rgba(220,60,60,0.2);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; margin: 0 auto 16px;
-}
-.btn-remove-confirm {
-  width: 100%; padding: 12px;
-  background: #c0392b; border: none; border-radius: 8px;
-  color: #fff; font-size: 0.9rem; font-weight: 700;
-  cursor: pointer; margin-top: 16px;
-  transition: background 0.2s;
-}
-.btn-remove-confirm:hover { background: #a93226; }
+/* ── Remove confirm modal ── */
+.remove-modal-icon { width: 52px; height: 52px; border-radius: 50%; background: #fff5f5; border: 1.5px solid #f5c6cb; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; margin: 0 auto 16px; }
+.btn-remove-confirm { width: 100%; padding: 12px; background: #dc3545; border: none; border-radius: 8px; color: #fff; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 16px; transition: 0.3s; }
+.btn-remove-confirm:hover { background: #c82333; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
 /* ── Responsive ── */
-@media (max-width: 860px) {
-  .page { grid-template-columns: 1fr; padding: 0 20px 60px; }
-  .breadcrumb { display: none; }
-  .form-row.triple { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 500px) {
-  .form-row, .form-row.triple { grid-template-columns: 1fr; }
-  .step-line { width: 30px; }
-}
+@media (max-width: 1100px) { .page { grid-template-columns: minmax(0,1fr) 380px; padding: 20px 24px 80px; gap: 20px; } }
+@media (max-width: 860px)  { .page { grid-template-columns: 1fr; padding: 16px 16px 60px; } .breadcrumb { display: none; } .form-row.triple { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 500px)  { .form-row, .form-row.triple { grid-template-columns: 1fr; } .step-line { width: 28px; } }
 </style>
 </head>
 <body>
@@ -346,10 +290,8 @@ body {
 <header class="topbar">
   <a href="#" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
   <div class="breadcrumb">
-    <span>Cart</span>
-    <span>›</span>
-    <span class="active">Checkout</span>
-    <span>›</span>
+    <span>Cart</span><span>›</span>
+    <span class="active">Checkout</span><span>›</span>
     <span>Confirmation</span>
   </div>
   <div class="profile-btn" title="My Account">
@@ -361,24 +303,26 @@ body {
 
 <!-- ── Steps ── -->
 <div class="steps-bar">
-  <div class="step done">
-    <div class="step-num">✓</div> Cart
-  </div>
+  <div class="step done"><div class="step-num">✓</div> Cart</div>
   <div class="step-line"></div>
-  <div class="step active">
-    <div class="step-num">2</div> Checkout
-  </div>
+  <div class="step active"><div class="step-num">2</div> Checkout</div>
   <div class="step-line"></div>
-  <div class="step">
-    <div class="step-num">3</div> Confirmation
-  </div>
+  <div class="step"><div class="step-num">3</div> Confirmation</div>
 </div>
 
 <!-- ── Page ── -->
+<form method="POST" action="checkout.php" novalidate>
 <div class="page">
 
   <!-- LEFT COLUMN -->
   <div>
+
+    <?php if (!empty($errors)): ?>
+    <div class="error-banner">
+      <span class="error-banner-icon">⚠️</span>
+      Please fix the highlighted fields below before continuing.
+    </div>
+    <?php endif; ?>
 
     <!-- Contact Information -->
     <div class="panel" style="animation-delay:0.05s">
@@ -386,23 +330,42 @@ body {
         <div class="panel-title-icon">👤</div>
         Contact Information
       </div>
+
       <div class="form-row">
         <div class="field">
-          <label>First Name</label>
-          <input type="text" name="first_name" placeholder="John">
+          <label for="first_name">First Name</label>
+          <input type="text" id="first_name" name="first_name"
+                 class="<?= errClass('first_name', $errors) ?>"
+                 placeholder="John"
+                 value="<?= val('first_name', $v) ?>">
+          <?php err('first_name', $errors); ?>
         </div>
         <div class="field">
-          <label>Last Name</label>
-          <input type="text" name="last_name" placeholder="Doe">
+          <label for="last_name">Last Name</label>
+          <input type="text" id="last_name" name="last_name"
+                 class="<?= errClass('last_name', $errors) ?>"
+                 placeholder="Doe"
+                 value="<?= val('last_name', $v) ?>">
+          <?php err('last_name', $errors); ?>
         </div>
       </div>
+
       <div class="field">
-        <label>Email Address</label>
-        <input type="email" name="email" placeholder="john@email.com">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email"
+               class="<?= errClass('email', $errors) ?>"
+               placeholder="john@email.com"
+               value="<?= val('email', $v) ?>">
+        <?php err('email', $errors); ?>
       </div>
+
       <div class="field" style="margin-bottom:0">
-        <label>Phone Number</label>
-        <input type="tel" name="phone" placeholder="+60 12-345 6789">
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone"
+               class="<?= errClass('phone', $errors) ?>"
+               placeholder="+60 12-345 6789"
+               value="<?= val('phone', $v) ?>">
+        <?php err('phone', $errors); ?>
       </div>
     </div>
 
@@ -412,37 +375,58 @@ body {
         <div class="panel-title-icon">📍</div>
         Delivery Address
       </div>
+
       <div class="field">
-        <label>Street Address</label>
-        <input type="text" name="address1" placeholder="No. 12, Jalan Setia...">
+        <label for="address1">Street Address</label>
+        <input type="text" id="address1" name="address1"
+               class="<?= errClass('address1', $errors) ?>"
+               placeholder="No. 12, Jalan Setia..."
+               value="<?= val('address1', $v) ?>">
+        <?php err('address1', $errors); ?>
       </div>
+
       <div class="field">
-        <label>Address Line 2 <span style="color:#aaa;font-weight:300;font-size:0.7rem">(optional)</span></label>
-        <input type="text" name="address2" placeholder="Apartment, suite, unit...">
+        <label for="address2">Address Line 2
+          <span style="color:#aaa;font-weight:300;font-size:0.7rem">(optional)</span>
+        </label>
+        <input type="text" id="address2" name="address2"
+               placeholder="Apartment, suite, unit..."
+               value="<?= val('address2', $v) ?>">
       </div>
+
       <div class="form-row triple">
         <div class="field" style="margin-bottom:0">
-          <label>City</label>
-          <input type="text" name="city" placeholder="Johor Bahru">
+          <label for="city">City</label>
+          <input type="text" id="city" name="city"
+                 class="<?= errClass('city', $errors) ?>"
+                 placeholder="Johor Bahru"
+                 value="<?= val('city', $v) ?>">
+          <?php err('city', $errors); ?>
         </div>
+
         <div class="field" style="margin-bottom:0">
-          <label>State</label>
-          <select name="state">
+          <label for="state">State</label>
+          <select id="state" name="state" class="<?= errClass('state', $errors) ?>">
             <option value="">Select</option>
-            <option>Johor</option>
-            <option>Selangor</option>
-            <option>Kuala Lumpur</option>
-            <option>Penang</option>
-            <option>Sabah</option>
-            <option>Sarawak</option>
-            <option>Melaka</option>
-            <option>Sembilan</option>
-            <option>Kedah</option>
+            <?php
+            $states = ['Johor','Selangor','Kuala Lumpur','Penang',
+                       'Sabah','Sarawak','Melaka','Sembilan','Kedah'];
+            foreach ($states as $s) {
+                $sel = ($v['state'] ?? '') === $s ? ' selected' : '';
+                echo "<option{$sel}>" . htmlspecialchars($s) . "</option>";
+            }
+            ?>
           </select>
+          <?php err('state', $errors); ?>
         </div>
+
         <div class="field" style="margin-bottom:0">
-          <label>Postcode</label>
-          <input type="text" name="postcode" placeholder="80000" maxlength="5">
+          <label for="postcode">Postcode</label>
+          <input type="text" id="postcode" name="postcode"
+                 class="<?= errClass('postcode', $errors) ?>"
+                 placeholder="80000" maxlength="5"
+                 value="<?= val('postcode', $v) ?>">
+          <?php err('postcode', $errors); ?>
         </div>
       </div>
     </div>
@@ -458,42 +442,58 @@ body {
       </div>
 
       <!-- Scrollable items list -->
-      <div class="order-items-scroll">
+      <div class="order-items-list">
         <div class="order-item">
-          <div class="item-thumb">💻</div>
+          <div class="item-thumb">
+            <img src="images/dell-inspiron15.jpg"
+                 alt="Dell Inspiron 15"
+                 onerror="this.style.display='none';this.parentNode.textContent='💻'">
+          </div>
           <div class="item-info">
             <p>Dell Inspiron 15</p>
             <small>Intel i5 · 16GB RAM · 512GB SSD</small>
           </div>
           <div class="item-price">RM 3,500<div class="item-qty">×1</div></div>
-          <button class="remove-btn" onclick="askRemove(this, 3500)">✕ Remove</button>
+          <button type="button" class="remove-btn" onclick="askRemove(this, 3500)">✕ Remove</button>
         </div>
         <div class="order-item">
-          <div class="item-thumb">🖱️</div>
+          <div class="item-thumb">
+            <img src="images/wireless-mouse.jpg"
+                 alt="Wireless Mouse Pro"
+                 onerror="this.style.display='none';this.parentNode.textContent='🖱️'">
+          </div>
           <div class="item-info">
             <p>Wireless Mouse Pro</p>
             <small>Bluetooth 5.0 · Ergonomic</small>
           </div>
           <div class="item-price">RM 50<div class="item-qty">×1</div></div>
-          <button class="remove-btn" onclick="askRemove(this, 50)">✕ Remove</button>
+          <button type="button" class="remove-btn" onclick="askRemove(this, 50)">✕ Remove</button>
         </div>
         <div class="order-item">
-          <div class="item-thumb">⌨️</div>
+          <div class="item-thumb">
+            <img src="images/keyboard.jpg"
+                 alt="Mechanical Keyboard"
+                 onerror="this.style.display='none';this.parentNode.textContent='⌨️'">
+          </div>
           <div class="item-info">
             <p>Mechanical Keyboard</p>
             <small>TKL · RGB · Blue Switch</small>
           </div>
           <div class="item-price">RM 280<div class="item-qty">×1</div></div>
-          <button class="remove-btn" onclick="askRemove(this, 280)">✕ Remove</button>
+          <button type="button" class="remove-btn" onclick="askRemove(this, 280)">✕ Remove</button>
         </div>
         <div class="order-item">
-          <div class="item-thumb">🖥️</div>
+          <div class="item-thumb">
+            <img src="images/monitor.jpg"
+                 alt="27 inch IPS Monitor"
+                 onerror="this.style.display='none';this.parentNode.textContent='🖥️'">
+          </div>
           <div class="item-info">
             <p>27" IPS Monitor</p>
             <small>1440p · 144Hz · HDR</small>
           </div>
           <div class="item-price">RM 1,200<div class="item-qty">×1</div></div>
-          <button class="remove-btn" onclick="askRemove(this, 1200)">✕ Remove</button>
+          <button type="button" class="remove-btn" onclick="askRemove(this, 1200)">✕ Remove</button>
         </div>
       </div>
 
@@ -519,91 +519,68 @@ body {
         <span id="total-val">RM 5,332</span>
       </div>
 
-      <button class="order-btn" id="orderBtn" onclick="showConfirmModal()">
+      <!-- This button triggers JS validation first, then shows confirm modal -->
+      <button type="button" class="order-btn" id="orderBtn" onclick="handlePlaceOrder()">
         🔒 Place Order &nbsp;→
       </button>
     </div>
   </div>
 
 </div><!-- end .page -->
+</form>
 
 
-<!-- ══════════════════════════════════════════
-     MODAL 1 — Order Confirmation
-═══════════════════════════════════════════ -->
+<!-- ══ MODAL 1 — Order Confirmation ══ -->
 <div id="confirmOverlay" class="modal-overlay">
   <div class="modal-box">
-
     <div class="modal-header">
       <div class="modal-title">
         <div class="modal-title-icon">🛍️</div>
         Confirm Your Order
       </div>
-      <button class="modal-close-btn" onclick="closeConfirmModal()">✕</button>
+      <button type="button" class="modal-close-btn" onclick="closeConfirmModal()">✕</button>
     </div>
 
     <div id="modalItems"></div>
 
     <hr class="divider">
-
-    <div class="line-item">
-      <span id="modal-subtotal-label">Subtotal</span>
-      <span id="modal-subtotal"></span>
-    </div>
-    <div class="line-item free">
-      <span>Shipping</span>
-      <span>Free</span>
-    </div>
-    <div class="line-item">
-      <span>Tax (6% SST)</span>
-      <span id="modal-tax"></span>
-    </div>
-
+    <div class="line-item"><span id="modal-subtotal-label">Subtotal</span><span id="modal-subtotal"></span></div>
+    <div class="line-item free"><span>Shipping</span><span>Free</span></div>
+    <div class="line-item"><span>Tax (6% SST)</span><span id="modal-tax"></span></div>
     <hr class="divider">
+    <div class="line-item total"><span>Total</span><span id="modal-total"></span></div>
 
-    <div class="line-item total">
-      <span>Total</span>
-      <span id="modal-total"></span>
-    </div>
-
-    <button class="btn-confirm" id="confirmBtn" onclick="submitOrder(this)">
+    <button type="button" class="btn-confirm" id="confirmBtn" onclick="submitOrder(this)">
       🔒 Confirm &amp; Pay &nbsp;→
     </button>
-    <button class="btn-secondary" onclick="closeConfirmModal()">Cancel</button>
-
+    <button type="button" class="btn-secondary" onclick="closeConfirmModal()">Cancel</button>
   </div>
 </div>
 
 
-<!-- ══════════════════════════════════════════
-     MODAL 2 — Remove Item Confirmation
-═══════════════════════════════════════════ -->
+<!-- ══ MODAL 2 — Remove Item Confirmation ══ -->
 <div id="removeOverlay" class="modal-overlay">
   <div class="modal-box" style="max-width:360px; text-align:center;">
-
     <div class="remove-modal-icon">🗑️</div>
-
     <h3 style="font-size:1rem; font-weight:700; color:#111; margin-bottom:10px;">Remove Item?</h3>
     <p style="font-size:0.85rem; color:#666; line-height:1.7;">
       Are you sure you want to remove<br>
       <strong id="remove-item-name" style="color:#111;"></strong>
       from your order?
     </p>
-
-    <button class="btn-remove-confirm" onclick="confirmRemove()">Yes, Remove It</button>
-    <button class="btn-secondary" onclick="closeRemoveModal()">Keep It</button>
-
+    <button type="button" class="btn-remove-confirm" onclick="confirmRemove()">Yes, Remove It</button>
+    <button type="button" class="btn-secondary" onclick="closeRemoveModal()">Keep It</button>
   </div>
 </div>
 
 
 <script>
-// ── State ─────────────────────────────────────────────────────────────────
+// ── State ────────────────────────────────────────────────────────────
 let subtotal           = 5030;
 let pendingRemoveBtn   = null;
 let pendingRemovePrice = 0;
 
-// ── Totals updater ────────────────────────────────────────────────────────
+// ── Totals updater ────────────────────────────────────────────────────
 function updateTotals() {
   const tax   = Math.round(subtotal * 0.06);
   const total = subtotal + tax;
@@ -622,33 +599,27 @@ function updateTotals() {
   }
 }
 
-// ── Remove — step 1: show confirmation popup ──────────────────────────────
+// ── Remove — step 1: confirm popup ───────────────────────────────────
 function askRemove(btn, price) {
   const item = btn.closest('.order-item');
-  const name = item.querySelector('.item-info p').textContent;
-
   pendingRemoveBtn   = btn;
   pendingRemovePrice = price;
-
-  document.getElementById('remove-item-name').textContent = name;
-  document.getElementById('removeOverlay').style.display  = 'flex';
+  document.getElementById('remove-item-name').textContent = item.querySelector('.item-info p').textContent;
+  document.getElementById('removeOverlay').style.display = 'flex';
 }
 
-// ── Remove — step 2: user confirmed ──────────────────────────────────────
+// ── Remove — step 2: confirmed ────────────────────────────────────────
 function confirmRemove() {
   closeRemoveModal();
   if (!pendingRemoveBtn) return;
-
   const item = pendingRemoveBtn.closest('.order-item');
   item.style.transition = 'opacity 0.25s, transform 0.25s';
   item.style.opacity    = '0';
   item.style.transform  = 'translateX(10px)';
-
   setTimeout(() => {
     item.remove();
-    subtotal          -= pendingRemovePrice;
-    pendingRemoveBtn   = null;
-    pendingRemovePrice = 0;
+    subtotal -= pendingRemovePrice;
+    pendingRemoveBtn = null; pendingRemovePrice = 0;
     updateTotals();
   }, 270);
 }
@@ -657,7 +628,91 @@ function closeRemoveModal() {
   document.getElementById('removeOverlay').style.display = 'none';
 }
 
-// ── Order Confirmation Modal ───────────────────────────────────────────────
+// ── Client-side validation ────────────────────────────────────────────
+const rules = {
+  first_name: { label: 'First name',    required: true, pattern: /^[a-zA-Z\s'\-]+$/,  patternMsg: 'First name may only contain letters.' },
+  last_name:  { label: 'Last name',     required: true, pattern: /^[a-zA-Z\s'\-]+$/,  patternMsg: 'Last name may only contain letters.' },
+  email:      { label: 'Email address', required: true, pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, patternMsg: 'Enter a valid email (e.g. john@email.com).' },
+  phone:      { label: 'Phone number',  required: true, pattern: /^[+0-9\s\-()\u200f]{7,20}$/, patternMsg: 'Enter a valid phone number (e.g. +60 12-345 6789).' },
+  address1:   { label: 'Street address',required: true },
+  city:       { label: 'City',          required: true, pattern: /^[a-zA-Z\s'\-]+$/, patternMsg: 'City name may only contain letters.' },
+  state:      { label: 'State',         required: true },
+  postcode:   { label: 'Postcode',      required: true, pattern: /^\d{5}$/, patternMsg: 'Postcode must be exactly 5 digits.' },
+};
+
+function clearClientErrors() {
+  document.querySelectorAll('.client-err').forEach(e => e.remove());
+  document.querySelectorAll('.is-error').forEach(e => e.classList.remove('is-error'));
+  const banner = document.getElementById('client-banner');
+  if (banner) banner.remove();
+}
+
+function showClientError(input, msg) {
+  input.classList.add('is-error');
+  const err = document.createElement('div');
+  err.className = 'field-error client-err';
+  err.innerHTML = '<span class="field-error-icon">⚠</span>' + msg;
+  input.closest('.field').appendChild(err);
+}
+
+function validateForm() {
+  clearClientErrors();
+  let firstError = null;
+  let hasError = false;
+
+  for (const [name, rule] of Object.entries(rules)) {
+    const el = document.querySelector('[name="' + name + '"]');
+    if (!el) continue;
+    const val = el.value.trim();
+
+    if (rule.required && val === '') {
+      showClientError(el, rule.label + ' is required.');
+      if (!firstError) firstError = el;
+      hasError = true;
+    } else if (val !== '' && rule.pattern && !rule.pattern.test(val)) {
+      showClientError(el, rule.patternMsg);
+      if (!firstError) firstError = el;
+      hasError = true;
+    }
+  }
+
+  if (hasError) {
+    // Show top banner
+    const banner = document.createElement('div');
+    banner.id = 'client-banner';
+    banner.className = 'error-banner client-err';
+    banner.innerHTML = '<span class="error-banner-icon">⚠️</span> Please fix the highlighted fields before continuing.';
+    document.querySelector('.panel').before(banner);
+    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    firstError.focus();
+  }
+
+  return !hasError;
+}
+
+// ── Place Order: validate first, then show confirm modal ─────────────
+function handlePlaceOrder() {
+  if (!validateForm()) return;
+  showConfirmModal();
+}
+
+// Clear error on input change
+document.addEventListener('input', function(e) {
+  if (e.target.classList.contains('is-error')) {
+    e.target.classList.remove('is-error');
+    const fe = e.target.closest('.field')?.querySelector('.client-err');
+    if (fe) fe.remove();
+  }
+});
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('is-error')) {
+    e.target.classList.remove('is-error');
+    const fe = e.target.closest('.field')?.querySelector('.client-err');
+    if (fe) fe.remove();
+  }
+});
+
+// ── Order Confirmation Modal ──────────────────────────────────────────
 function showConfirmModal() {
   const items = document.querySelectorAll('.order-item');
   let html = '';
@@ -693,17 +748,16 @@ function closeConfirmModal() {
   document.getElementById('confirmOverlay').style.display = 'none';
 }
 
-// ── Submit — redirect to paymentcheckout.php ──────────────────────────────
+// ── Submit: redirect to paymentcheckout.php ───────────────────────────
 function submitOrder(btn) {
   btn.innerHTML        = '⏳ Processing…';
   btn.style.background = '#1555a0';
   btn.disabled         = true;
-  setTimeout(() => {
-    window.location.href = 'paymentcheckout.php';
-  }, 1500);
+  // Submit the actual form so PHP session is populated
+  document.querySelector('form').submit();
 }
 
-// ── Close modals when clicking backdrop ───────────────────────────────────
+// ── Close modals on backdrop click ────────────────────────────────────
 document.getElementById('confirmOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeConfirmModal();
 });
