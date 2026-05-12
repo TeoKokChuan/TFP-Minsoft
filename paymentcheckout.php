@@ -1,12 +1,31 @@
 <?php
 session_start();
 
+// ── Database connection ────────────────────────────────────────────────────
+$conn = mysqli_connect('localhost', 'root', '', 'onlinecomputershop');
+if (!$conn)
+  die('Database connection failed: ' . mysqli_connect_error());
+
+// ── Guards ─────────────────────────────────────────────────────────────────
+if (!isset($_SESSION['User_ID'])) {
+  header('Location: login.php');
+  exit;
+}
+if (!isset($_SESSION['checkout'])) {
+  header('Location: checkout.php');
+  exit;
+}
+
+$user_id = (int) $_SESSION['User_ID'];
+$checkout = $_SESSION['checkout'];
+$total = (float) ($_SESSION['checkout_total'] ?? 0);
+$subtotal = (float) ($_SESSION['checkout_subtotal'] ?? 0);
+
+// ── Form handling ──────────────────────────────────────────────────────────
 $errors = [];
-$activeTab = 'card';
+$v = $_POST ?? [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $method = 'card';
-  $activeTab = 'card';
 
   $cardNum = trim($_POST['cardNum'] ?? '');
   $cardName = trim($_POST['cardName'] ?? '');
@@ -32,17 +51,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors['cvv'] = 'CVV must be 3 or 4 digits.';
 
   if (empty($errors)) {
-    $raw = preg_replace('/\s/', '', $cardNum);
+
+    // ── 1. Insert into customer_order ──────────────────────────────────
+    // customer_order: Order_ID, User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod
+    $order_sql = "INSERT INTO customer_order (User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod)
+                      VALUES (?, 'Pending', NOW(), ?, 'Credit Card')";
+    $ostmt = mysqli_prepare($conn, $order_sql);
+    mysqli_stmt_bind_param($ostmt, 'id', $user_id, $total);
+    mysqli_stmt_execute($ostmt);
+    $order_id = mysqli_insert_id($conn);
+    mysqli_stmt_close($ostmt);
+
+    // ── 2. Insert into bill_master ─────────────────────────────────────
+    // bill_master: Bill_ID, User_ID, Date_time, User_name, Shipping_address, Total_amount, Bill_Status
+    $shipping_addr = $_SESSION['checkout_address'] ?? $checkout['address1'];
+    $user_name = $checkout['user_name'] ?? '';
+
+    $bill_sql = "INSERT INTO bill_master (Bill_ID, User_ID, Date_time, User_name, Shipping_address, Total_amount, Bill_Status)
+                     VALUES (?, ?, NOW(), ?, ?, ?, 'Pending')";
+    $bstmt = mysqli_prepare($conn, $bill_sql);
+    mysqli_stmt_bind_param(
+      $bstmt,
+      'iissd',
+      $order_id,
+      $user_id,
+      $user_name,
+      $shipping_addr,
+      $total
+    );
+    mysqli_stmt_execute($bstmt);
+    mysqli_stmt_close($bstmt);
+
+    // ── 3. Insert into bill_transaction from cart ──────────────────────
+    // bill_transaction: transaction_ID, Bill_ID, Product_ID, quantity, unitPrice, subtotal
+    $cart_sql = "SELECT c.Product_ID, c.cartQuantity, p.Price
+                     FROM cart c
+                     JOIN product p ON c.Product_ID = p.Product_ID
+                     WHERE c.User_ID = ?";
+    $cstmt = mysqli_prepare($conn, $cart_sql);
+    mysqli_stmt_bind_param($cstmt, 'i', $user_id);
+    mysqli_stmt_execute($cstmt);
+    $cart_result = mysqli_stmt_get_result($cstmt);
+
+    $tstmt = mysqli_prepare(
+      $conn,
+      "INSERT INTO bill_transaction (Bill_ID, Product_ID, quantity, unitPrice, subtotal)
+             VALUES (?, ?, ?, ?, ?)"
+    );
+
+    while ($row = mysqli_fetch_assoc($cart_result)) {
+      $line_subtotal = $row['Price'] * $row['cartQuantity'];
+      mysqli_stmt_bind_param(
+        $tstmt,
+        'iiidd',
+        $order_id,
+        $row['Product_ID'],
+        $row['cartQuantity'],
+        $row['Price'],
+        $line_subtotal
+      );
+      mysqli_stmt_execute($tstmt);
+    }
+    mysqli_stmt_close($cstmt);
+    mysqli_stmt_close($tstmt);
+
+    // ── 4. Clear the cart ──────────────────────────────────────────────
+    $del = mysqli_prepare($conn, "DELETE FROM cart WHERE User_ID = ?");
+    mysqli_stmt_bind_param($del, 'i', $user_id);
+    mysqli_stmt_execute($del);
+    mysqli_stmt_close($del);
+
+    // ── 5. Store minimal info for result page (no card data) ──────────
     $_SESSION['payment'] = [
-      'method' => 'card',
-      'card_last4' => substr($raw, -4),
+      'order_id' => $order_id,
+      'method' => 'Credit Card',
     ];
+    unset(
+      $_SESSION['checkout'],
+      $_SESSION['checkout_address'],
+      $_SESSION['checkout_total'],
+      $_SESSION['checkout_subtotal'],
+      $_SESSION['checkout_tax']
+    );
+
     header('Location: paymentresult.php');
     exit;
   }
 }
-
-$v = $_POST ?? [];
 
 function err($field, $errors)
 {
@@ -81,7 +176,6 @@ function val($field, $v)
       line-height: 1.6;
     }
 
-    /* ── Topbar ── */
     .topbar {
       display: flex;
       align-items: center;
@@ -141,7 +235,6 @@ function val($field, $v)
       fill: #007bff;
     }
 
-    /* ── Steps ── */
     .steps-bar {
       display: flex;
       align-items: center;
@@ -198,14 +291,12 @@ function val($field, $v)
       margin: 0 10px;
     }
 
-    /* ── Centred body ── */
     .body {
       display: flex;
       justify-content: center;
       padding: 30px 24px 80px;
     }
 
-    /* ── Panel ── */
     .panel {
       background: #fff;
       border-radius: 12px;
@@ -213,7 +304,7 @@ function val($field, $v)
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
       padding: 32px;
       width: 100%;
-      max-width: 600px;
+      max-width: 520px;
       margin: 0 auto;
       animation: fadeUp 0.4s ease both;
     }
@@ -254,7 +345,6 @@ function val($field, $v)
       font-size: 0.85rem;
     }
 
-    /* ── Error banner ── */
     .error-banner {
       display: flex;
       align-items: center;
@@ -268,12 +358,6 @@ function val($field, $v)
       color: #dc3545;
     }
 
-    .error-banner-icon {
-      font-size: 0.9rem;
-      flex-shrink: 0;
-    }
-
-    /* ── Form fields ── */
     .field {
       margin-bottom: 18px;
     }
@@ -301,7 +385,6 @@ function val($field, $v)
       border-radius: 8px;
       padding: 11px 14px;
       color: #222;
-      font-family: 'Segoe UI', sans-serif;
       font-size: 0.92rem;
       outline: none;
       transition: 0.3s;
@@ -339,7 +422,6 @@ function val($field, $v)
       font-size: 0.7rem;
     }
 
-    /* Card network badges inside input */
     .cicons {
       position: absolute;
       right: 12px;
@@ -366,14 +448,12 @@ function val($field, $v)
       gap: 14px;
     }
 
-    /* ── Divider ── */
     .divider {
       border: none;
       border-top: 1px solid #eee;
       margin: 22px 0;
     }
 
-    /* ── Actions ── */
     .actions {
       display: flex;
       gap: 12px;
@@ -424,7 +504,6 @@ function val($field, $v)
       background-color: #007bff;
     }
 
-    /* ── Responsive ── */
     @media (max-width: 540px) {
       .body {
         padding: 20px 16px 60px;
@@ -451,23 +530,21 @@ function val($field, $v)
 
 <body>
 
-  <!-- ── Topbar ── -->
   <header class="topbar">
-    <a href="#" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
+    <a href="index.php" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
     <div class="breadcrumb">
       <span>Cart</span><span>›</span>
       <span>Checkout</span><span>›</span>
       <span class="active">Payment</span>
     </div>
     <div class="profile-btn" title="My Account">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 24 24">
         <path
           d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
       </svg>
     </div>
   </header>
 
-  <!-- ── Steps ── -->
   <div class="steps-bar">
     <div class="step done">
       <div class="step-num">✓</div> Cart
@@ -482,11 +559,8 @@ function val($field, $v)
     </div>
   </div>
 
-  <!-- ── Centred body ── -->
   <div class="body">
     <form id="payForm" method="POST" action="paymentcheckout.php" style="width:100%">
-      <input type="hidden" name="method" value="card">
-
       <div class="panel">
 
         <div class="panel-title">
@@ -495,13 +569,9 @@ function val($field, $v)
         </div>
 
         <?php if (!empty($errors)): ?>
-          <div class="error-banner">
-            <span class="error-banner-icon">⚠️</span>
-            Please fill in the necessary information.
-          </div>
+          <div class="error-banner">⚠️ Please fill in the necessary information.</div>
         <?php endif; ?>
 
-        <!-- Card Number -->
         <div class="field">
           <label for="cardNum">Card Number</label>
           <div class="iw">
@@ -516,7 +586,6 @@ function val($field, $v)
           <?php err('cardNum', $errors); ?>
         </div>
 
-        <!-- Name on Card -->
         <div class="field">
           <label for="cardName">Name on Card</label>
           <input type="text" class="<?= errClass('cardName', $errors) ?>" id="cardName" name="cardName"
@@ -525,7 +594,6 @@ function val($field, $v)
           <?php err('cardName', $errors); ?>
         </div>
 
-        <!-- Expiry + CVV -->
         <div class="frow">
           <div class="field" style="margin-bottom:0">
             <label for="expiry">Expiry Date</label>
@@ -544,11 +612,10 @@ function val($field, $v)
 
         <hr class="divider">
 
-        <!-- Actions -->
         <div class="actions">
           <a href="checkout.php" class="btn-back">← Back</a>
           <button type="button" class="btn-pay" onclick="doPay()">
-            🔒 Pay Now &nbsp;·&nbsp; RM 5,332
+            🔒 Pay Now &nbsp;·&nbsp; RM <?= number_format($total, 2) ?>
           </button>
         </div>
 
@@ -561,51 +628,39 @@ function val($field, $v)
       let v = el.value.replace(/\D/g, '').slice(0, 16);
       el.value = v.match(/.{1,4}/g)?.join(' ') ?? v;
     }
-
     function fmtExp(el) {
       let v = el.value.replace(/\D/g, '').slice(0, 4);
       if (v.length >= 3) v = v.slice(0, 2) + ' / ' + v.slice(2);
       el.value = v;
     }
-
     function doPay() {
       document.querySelectorAll('.client-err').forEach(e => e.remove());
       document.querySelectorAll('.is-error').forEach(e => e.classList.remove('is-error'));
-
       const cardNum = document.getElementById('cardNum');
       const cardName = document.getElementById('cardName');
       const expiry = document.getElementById('expiry');
       const cvv = document.getElementById('cvv');
       let valid = true;
-
-      if (!cardNum.value.trim()) {
-        showErr(cardNum, 'Card number is required.'); valid = false;
-      } else if (cardNum.value.replace(/\s/g, '').length < 16) {
-        showErr(cardNum, 'Enter a valid 16-digit card number.'); valid = false;
-      }
+      if (!cardNum.value.trim()) { showErr(cardNum, 'Card number is required.'); valid = false; }
+      else if (cardNum.value.replace(/\s/g, '').length < 16) { showErr(cardNum, 'Enter a valid 16-digit card number.'); valid = false; }
       if (!cardName.value.trim()) { showErr(cardName, 'Name on card is required.'); valid = false; }
       if (!expiry.value.trim()) { showErr(expiry, 'Expiry date is required.'); valid = false; }
       else if (!/^\d{2}\s*\/\s*\d{2}$/.test(expiry.value)) { showErr(expiry, 'Use MM / YY format.'); valid = false; }
       if (!cvv.value.trim()) { showErr(cvv, 'CVV is required.'); valid = false; }
       else if (!/^\d{3,4}$/.test(cvv.value)) { showErr(cvv, 'CVV must be 3 or 4 digits.'); valid = false; }
-
       if (!valid) return;
       document.getElementById('payForm').submit();
     }
-
     function showErr(input, msg) {
       input.classList.add('is-error');
       const err = document.createElement('div');
-      err.className = 'field-error client-err';
-      err.textContent = msg;
+      err.className = 'field-error client-err'; err.textContent = msg;
       input.closest('.field').appendChild(err);
     }
-
     document.addEventListener('input', function (e) {
       if (e.target.classList.contains('is-error')) {
         e.target.classList.remove('is-error');
-        const fe = e.target.closest('.field')?.querySelector('.client-err');
-        if (fe) fe.remove();
+        e.target.closest('.field')?.querySelector('.client-err')?.remove();
       }
     });
   </script>
@@ -613,3 +668,4 @@ function val($field, $v)
 </body>
 
 </html>
+<?php mysqli_close($conn); ?>
