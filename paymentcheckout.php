@@ -1,10 +1,6 @@
 <?php
 session_start();
-
-// ── Database connection ────────────────────────────────────────────────────
-$conn = mysqli_connect('localhost', 'root', '', 'onlinecomputershop');
-if (!$conn)
-  die('Database connection failed: ' . mysqli_connect_error());
+include "database.php";
 
 // ── Guards ─────────────────────────────────────────────────────────────────
 if (!isset($_SESSION['User_ID'])) {
@@ -40,10 +36,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($cardName === '')
     $errors['cardName'] = 'Name on card is required.';
 
-  if ($expiry === '')
+  if ($expiry === '') {
     $errors['expiry'] = 'Expiry date is required.';
-  elseif (!preg_match('/^\d{2}\s*\/\s*\d{2}$/', $expiry))
+  } elseif (!preg_match('/^\d{2}\s*\/\s*\d{2}$/', $expiry)) {
     $errors['expiry'] = 'Use MM / YY format.';
+  } else {
+    $parts = preg_split('/\s*\/\s*/', $expiry);
+    $exp_month = (int) $parts[0];
+    $exp_year = (int) ('20' . trim($parts[1]));
+    $cur_month = (int) date('m');
+    $cur_year = (int) date('Y');
+    if ($exp_month < 1 || $exp_month > 12) {
+      $errors['expiry'] = 'Invalid month. Use MM / YY format.';
+    } elseif ($exp_year < $cur_year || ($exp_year === $cur_year && $exp_month < $cur_month)) {
+      $errors['expiry'] = 'This card has expired.';
+    }
+  }
 
   if ($cvv === '')
     $errors['cvv'] = 'CVV is required.';
@@ -53,78 +61,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if (empty($errors)) {
 
     // ── 1. Insert into customer_order ──────────────────────────────────
-    // customer_order: Order_ID, User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod
-    $order_sql = "INSERT INTO customer_order (User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod)
-                      VALUES (?, 'Pending', NOW(), ?, 'Credit Card')";
-    $ostmt = mysqli_prepare($conn, $order_sql);
-    mysqli_stmt_bind_param($ostmt, 'id', $user_id, $total);
-    mysqli_stmt_execute($ostmt);
-    $order_id = mysqli_insert_id($conn);
-    mysqli_stmt_close($ostmt);
+    $order_stmt = $conn->prepare(
+      "INSERT INTO customer_order (User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod)
+             VALUES (?, 'Pending', NOW(), ?, 'Credit Card')"
+    );
+    $order_stmt->bind_param('id', $user_id, $total);
+    $order_stmt->execute();
+    $order_id = $conn->insert_id;
+    $order_stmt->close();
 
     // ── 2. Insert into bill_master ─────────────────────────────────────
-    // bill_master: Bill_ID, User_ID, Date_time, User_name, Shipping_address, Total_amount, Bill_Status
     $shipping_addr = $_SESSION['checkout_address'] ?? $checkout['address1'];
     $user_name = $checkout['user_name'] ?? '';
 
-    $bill_sql = "INSERT INTO bill_master (Bill_ID, User_ID, Date_time, User_name, Shipping_address, Total_amount, Bill_Status)
-                     VALUES (?, ?, NOW(), ?, ?, ?, 'Pending')";
-    $bstmt = mysqli_prepare($conn, $bill_sql);
-    mysqli_stmt_bind_param(
-      $bstmt,
-      'iissd',
-      $order_id,
-      $user_id,
-      $user_name,
-      $shipping_addr,
-      $total
+    $bill_stmt = $conn->prepare(
+      "INSERT INTO bill_master (Bill_ID, User_ID, Date_time, User_name, Shipping_address, Total_amount, Bill_Status)
+             VALUES (?, ?, NOW(), ?, ?, ?, 'Pending')"
     );
-    mysqli_stmt_execute($bstmt);
-    mysqli_stmt_close($bstmt);
+    $bill_stmt->bind_param('iissd', $order_id, $user_id, $user_name, $shipping_addr, $total);
+    $bill_stmt->execute();
+    $bill_stmt->close();
 
-    // ── 3. Insert into bill_transaction from cart ──────────────────────
-    // bill_transaction: transaction_ID, Bill_ID, Product_ID, quantity, unitPrice, subtotal
-    $cart_sql = "SELECT c.Product_ID, c.cartQuantity, p.Price
-                     FROM cart c
-                     JOIN product p ON c.Product_ID = p.Product_ID
-                     WHERE c.User_ID = ?";
-    $cstmt = mysqli_prepare($conn, $cart_sql);
-    mysqli_stmt_bind_param($cstmt, 'i', $user_id);
-    mysqli_stmt_execute($cstmt);
-    $cart_result = mysqli_stmt_get_result($cstmt);
+    // ── 3. Fetch cart and insert into bill_transaction ─────────────────
+    $cart_stmt = $conn->prepare(
+      "SELECT c.Product_ID, c.cartQuantity, p.Price
+             FROM cart c
+             JOIN product p ON c.Product_ID = p.Product_ID
+             WHERE c.User_ID = ?"
+    );
+    $cart_stmt->bind_param('i', $user_id);
+    $cart_stmt->execute();
+    $cart_result = $cart_stmt->get_result();
 
-    $tstmt = mysqli_prepare(
-      $conn,
+    $tx_stmt = $conn->prepare(
       "INSERT INTO bill_transaction (Bill_ID, Product_ID, quantity, unitPrice, subtotal)
              VALUES (?, ?, ?, ?, ?)"
     );
 
-    while ($row = mysqli_fetch_assoc($cart_result)) {
-      $line_subtotal = $row['Price'] * $row['cartQuantity'];
-      mysqli_stmt_bind_param(
-        $tstmt,
+    while ($row = $cart_result->fetch_assoc()) {
+      $line_sub = $row['Price'] * $row['cartQuantity'];
+      $tx_stmt->bind_param(
         'iiidd',
         $order_id,
         $row['Product_ID'],
         $row['cartQuantity'],
         $row['Price'],
-        $line_subtotal
+        $line_sub
       );
-      mysqli_stmt_execute($tstmt);
+      $tx_stmt->execute();
+
+      $stock_stmt = $conn->prepare(
+        "UPDATE product SET stockQuantity = stockQuantity - ? 
+         WHERE Product_ID = ? AND stockQuantity >= ?"
+    );
+    $stock_stmt->bind_param('iii',
+        $row['cartQuantity'],
+        $row['Product_ID'],
+        $row['cartQuantity']   // safety: only reduce if enough stock
+    );
+    $stock_stmt->execute();
+    $stock_stmt->close();
     }
-    mysqli_stmt_close($cstmt);
-    mysqli_stmt_close($tstmt);
+    $cart_stmt->close();
+    $tx_stmt->close();
 
-    // ── 4. Clear the cart ──────────────────────────────────────────────
-    $del = mysqli_prepare($conn, "DELETE FROM cart WHERE User_ID = ?");
-    mysqli_stmt_bind_param($del, 'i', $user_id);
-    mysqli_stmt_execute($del);
-    mysqli_stmt_close($del);
+    // ── 4. Clear cart ──────────────────────────────────────────────────
+    $del_stmt = $conn->prepare("DELETE FROM cart WHERE User_ID = ?");
+    $del_stmt->bind_param('i', $user_id);
+    $del_stmt->execute();
+    $del_stmt->close();
 
-    // ── 5. Store minimal info for result page (no card data) ──────────
+    // ── 5. Store order ID for result page (no card data stored) ────────
     $_SESSION['payment'] = [
       'order_id' => $order_id,
       'method' => 'Credit Card',
+      'total' => $total,
     ];
     unset(
       $_SESSION['checkout'],
@@ -169,7 +180,7 @@ function val($field, $v)
     }
 
     body {
-      background-color: #f8f9fa;
+      background-color: #ffffff;
       color: #222;
       min-height: 100vh;
       font-size: 15px;
@@ -193,7 +204,7 @@ function val($field, $v)
     .logo {
       font-weight: 800;
       font-size: 1.25rem;
-      color: #007bff;
+      color: #020617;
       text-decoration: none;
       letter-spacing: -0.5px;
     }
@@ -235,62 +246,6 @@ function val($field, $v)
       fill: #007bff;
     }
 
-    .steps-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 20px;
-    }
-
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: #bbb;
-    }
-
-    .step.active {
-      color: #007bff;
-    }
-
-    .step.done {
-      color: #28a745;
-    }
-
-    .step-num {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 2px solid currentColor;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.72rem;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .step.active .step-num {
-      background: #007bff;
-      color: #fff;
-      border-color: #007bff;
-    }
-
-    .step.done .step-num {
-      background: #28a745;
-      color: #fff;
-      border-color: #28a745;
-    }
-
-    .step-line {
-      width: 60px;
-      height: 2px;
-      background: #eee;
-      margin: 0 10px;
-    }
-
     .body {
       display: flex;
       justify-content: center;
@@ -298,7 +253,7 @@ function val($field, $v)
     }
 
     .panel {
-      background: #fff;
+      background: #f8f9fa;
       border-radius: 12px;
       border: 1px solid #eaeaea;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
@@ -380,7 +335,7 @@ function val($field, $v)
 
     .field input {
       width: 100%;
-      background: #fff;
+      background: #ffffff;
       border: 1px solid #ddd;
       border-radius: 8px;
       padding: 11px 14px;
@@ -530,39 +485,13 @@ function val($field, $v)
 
 <body>
 
-  <header class="topbar">
-    <a href="index.php" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
-    <div class="breadcrumb">
-      <span>Cart</span><span>›</span>
-      <span>Checkout</span><span>›</span>
-      <span class="active">Payment</span>
-    </div>
-    <div class="profile-btn" title="My Account">
-      <svg viewBox="0 0 24 24">
-        <path
-          d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-      </svg>
-    </div>
-  </header>
+<?php include "paymentHeader.php"; ?>
 
-  <div class="steps-bar">
-    <div class="step done">
-      <div class="step-num">✓</div> Cart
-    </div>
-    <div class="step-line"></div>
-    <div class="step done">
-      <div class="step-num">✓</div> Checkout
-    </div>
-    <div class="step-line"></div>
-    <div class="step active">
-      <div class="step-num">3</div> Confirmation
-    </div>
-  </div>
 
   <div class="body">
     <form id="payForm" method="POST" action="paymentcheckout.php" style="width:100%">
-      <div class="panel">
 
+      <div class="panel">
         <div class="panel-title">
           <div class="panel-title-icon">💳</div>
           Credit / Debit Card
@@ -621,7 +550,12 @@ function val($field, $v)
 
       </div>
     </form>
+
+    
   </div>
+
+<?php include "footer.php"; ?>
+
 
   <script>
     function fmtCard(el) {
@@ -646,6 +580,14 @@ function val($field, $v)
       if (!cardName.value.trim()) { showErr(cardName, 'Name on card is required.'); valid = false; }
       if (!expiry.value.trim()) { showErr(expiry, 'Expiry date is required.'); valid = false; }
       else if (!/^\d{2}\s*\/\s*\d{2}$/.test(expiry.value)) { showErr(expiry, 'Use MM / YY format.'); valid = false; }
+      else {
+        const raw = expiry.value.replace(/\s/g, ''); // strip all spaces → e.g. "0126"
+        const expM = parseInt(raw.substring(0, 2), 10);
+        const expY = 2000 + parseInt(raw.substring(2, 4), 10);
+        const now = new Date(); const curM = now.getMonth() + 1; const curY = now.getFullYear();
+        if (expM < 1 || expM > 12) { showErr(expiry, 'Invalid month.'); valid = false; }
+        else if (expY < curY || (expY === curY && expM < curM)) { showErr(expiry, 'This card has expired.'); valid = false; }
+      }
       if (!cvv.value.trim()) { showErr(cvv, 'CVV is required.'); valid = false; }
       else if (!/^\d{3,4}$/.test(cvv.value)) { showErr(cvv, 'CVV must be 3 or 4 digits.'); valid = false; }
       if (!valid) return;
@@ -668,4 +610,3 @@ function val($field, $v)
 </body>
 
 </html>
-<?php mysqli_close($conn); ?>

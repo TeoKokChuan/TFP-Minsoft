@@ -1,45 +1,58 @@
 <?php
 session_start();
+include "database.php";
 
-$order_id = $_POST['order_id'] ?? 'ORDER-' . strtoupper(substr(uniqid(), -6));
-$date = $_POST['date'] ?? date('d M Y');
-$total = $_POST['total'] ?? 'RM 5,332';
-$user_name = $_SESSION['user_name'] ?? 'Customer';
+if (!isset($_SESSION['User_ID'])) {
+  header('Location: login.php');
+  exit;
+}
+$user_id = (int) $_SESSION['User_ID'];
+$user_name = $_SESSION['User_Name'] ?? 'Customer';
 
-// Do NOT read or store any card details
-// Clear any payment session data immediately
+// ── Get order ID from session (set by paymentcheckout.php) ─────────────────
+$order_id = (int) ($_SESSION['payment']['order_id'] ?? 0);
+
+// Clear payment session
 unset($_SESSION['payment']);
 
-$products = [
-  [
-    'name' => 'Dell Inspiron 15',
-    'emoji' => '💻',
-    'img' => 'images/dell-inspiron15.jpg',
-    'specs' => ['Intel i5', '16GB RAM', '512GB SSD'],
-    'price' => 'RM 3,500',
-  ],
-  [
-    'name' => 'Wireless Mouse Pro',
-    'emoji' => '🖱️',
-    'img' => 'images/wireless-mouse.jpg',
-    'specs' => ['Bluetooth 5.0', 'Ergonomic Design'],
-    'price' => 'RM 50',
-  ],
-  [
-    'name' => 'Mechanical Keyboard',
-    'emoji' => '⌨️',
-    'img' => 'images/keyboard.jpg',
-    'specs' => ['TKL Layout', 'RGB Backlight', 'Blue Switch'],
-    'price' => 'RM 280',
-  ],
-  [
-    'name' => '27" IPS Monitor',
-    'emoji' => '🖥️',
-    'img' => 'images/monitor.jpg',
-    'specs' => ['1440p Resolution', '144Hz', 'HDR Support'],
-    'price' => 'RM 1,200',
-  ],
-];
+// ── Load order from DB ─────────────────────────────────────────────────────
+if ($order_id) {
+  $ostmt = $conn->prepare("
+        SELECT Order_ID, orderDate, TotalPrice, PaymentMethod
+        FROM customer_order
+        WHERE Order_ID = ? AND User_ID = ?
+    ");
+  $ostmt->bind_param('ii', $order_id, $user_id);
+  $ostmt->execute();
+  $order = $ostmt->get_result()->fetch_assoc();
+  $ostmt->close();
+} else {
+  $order = null;
+}
+
+// ── Load items from bill_transaction JOIN product ──────────────────────────
+$products = [];
+if ($order_id) {
+  $tstmt = $conn->prepare("
+        SELECT bt.quantity, bt.unitPrice, bt.subtotal,
+               p.Product_name, p.imageUrl
+        FROM bill_transaction bt
+        JOIN product p ON bt.Product_ID = p.Product_ID
+        WHERE bt.Bill_ID = ?
+    ");
+  $tstmt->bind_param('i', $order_id);
+  $tstmt->execute();
+  $tres = $tstmt->get_result();
+  while ($row = $tres->fetch_assoc()) {
+    $products[] = $row;
+  }
+  $tstmt->close();
+}
+
+// Fallback values if order not found
+$display_order_id = $order ? 'ORD-' . str_pad($order['Order_ID'], 5, '0', STR_PAD_LEFT) : 'N/A';
+$display_date = $order ? date('d M Y', strtotime($order['orderDate'])) : date('d M Y');
+$display_total = $order ? 'RM ' . number_format($order['TotalPrice'], 2) : 'RM 0.00';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,7 +77,6 @@ $products = [
       line-height: 1.6;
     }
 
-    /* ── Topbar ── */
     .topbar {
       display: flex;
       align-items: center;
@@ -82,7 +94,7 @@ $products = [
     .logo {
       font-weight: 800;
       font-size: 1.25rem;
-      color: #007bff;
+      color: #020617;
       text-decoration: none;
       letter-spacing: -0.5px;
     }
@@ -125,7 +137,6 @@ $products = [
       fill: #007bff;
     }
 
-    /* ── Steps ── */
     .steps-bar {
       display: flex;
       align-items: center;
@@ -182,14 +193,12 @@ $products = [
       margin: 0 10px;
     }
 
-    /* ── Page body ── */
     .body {
       max-width: 1000px;
       margin: 0 auto;
-      padding: 30px 40px 80px;
+      padding: 30px 32px 80px;
     }
 
-    /* ── Single panel ── */
     .panel {
       background: #fff;
       border-radius: 12px;
@@ -235,7 +244,6 @@ $products = [
       font-size: 0.85rem;
     }
 
-    /* ── Success badge ── */
     .success-badge {
       display: flex;
       align-items: center;
@@ -276,14 +284,12 @@ $products = [
       margin-top: 2px;
     }
 
-    /* ── Divider ── */
     .divider {
       border: none;
       border-top: 1px solid #eee;
       margin: 18px 0;
     }
 
-    /* ── Info rows ── */
     .info-row {
       display: flex;
       justify-content: space-between;
@@ -310,7 +316,6 @@ $products = [
       text-align: right;
     }
 
-    /* ── Section sub-title ── */
     .section-label {
       font-size: 0.72rem;
       font-weight: 700;
@@ -320,7 +325,6 @@ $products = [
       margin-bottom: 12px;
     }
 
-    /* ── Scrollable product list ── */
     .products-list {
       display: flex;
       flex-direction: column;
@@ -357,8 +361,8 @@ $products = [
     }
 
     .product-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.07);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
       border-color: #007bff;
     }
 
@@ -371,7 +375,7 @@ $products = [
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.7rem;
+      font-size: 1.6rem;
       flex-shrink: 0;
       overflow: hidden;
     }
@@ -392,30 +396,12 @@ $products = [
       font-size: 0.88rem;
       font-weight: 600;
       color: #111;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
     }
 
-    .product-specs {
-      list-style: none;
-      padding: 0;
-    }
-
-    .product-specs li {
+    .product-desc {
       font-size: 0.73rem;
       color: #aaa;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      line-height: 1.65;
-    }
-
-    .product-specs li::before {
-      content: '';
-      width: 4px;
-      height: 4px;
-      border-radius: 50%;
-      background: #007bff;
-      flex-shrink: 0;
     }
 
     .product-price {
@@ -425,9 +411,16 @@ $products = [
       white-space: nowrap;
       align-self: flex-start;
       padding-top: 2px;
+      text-align: right;
     }
 
-    /* ── Order totals ── */
+    .product-price small {
+      display: block;
+      font-size: 0.68rem;
+      color: #aaa;
+      font-weight: 400;
+    }
+
     .order-line {
       display: flex;
       justify-content: space-between;
@@ -462,14 +455,12 @@ $products = [
       font-weight: 800;
     }
 
-    /* ── Thank you ── */
     .thankyou {
       font-size: 0.85rem;
       color: #666;
       line-height: 1.75;
     }
 
-    /* ── Back to Home ── */
     .btn-home {
       display: inline-flex;
       align-items: center;
@@ -485,6 +476,7 @@ $products = [
       text-decoration: none;
       transition: 0.3s;
       margin-top: 20px;
+      margin-right: 10px;
     }
 
     .btn-home:hover {
@@ -497,7 +489,28 @@ $products = [
       fill: #fff;
     }
 
-    /* ── Responsive ── */
+    .btn-history {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      background: transparent;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: #888;
+      cursor: pointer;
+      text-decoration: none;
+      transition: 0.3s;
+      margin-top: 20px;
+    }
+
+    .btn-history:hover {
+      border-color: #007bff;
+      color: #007bff;
+      background: #f0f6ff;
+    }
+
     @media (max-width: 540px) {
       .topbar {
         padding: 0 16px;
@@ -524,38 +537,8 @@ $products = [
 
 <body>
 
-  <!-- ── Topbar ── -->
-  <header class="topbar">
-    <a href="index.php" class="logo">Minsoft<span style="color:#a78bfa">.</span></a>
-    <div class="breadcrumb">
-      <span>Cart</span><span>›</span>
-      <span>Checkout</span><span>›</span>
-      <span class="active">Confirmation</span>
-    </div>
-    <a href="profile.php" class="profile-btn" title="My Account">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path
-          d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-      </svg>
-    </a>
-  </header>
+<?php include "header.php"; ?>
 
-  <!-- ── Steps ── -->
-  <div class="steps-bar">
-    <div class="step done">
-      <div class="step-num">✓</div> Cart
-    </div>
-    <div class="step-line"></div>
-    <div class="step done">
-      <div class="step-num">✓</div> Checkout
-    </div>
-    <div class="step-line"></div>
-    <div class="step active">
-      <div class="step-num">3</div> Confirmation
-    </div>
-  </div>
-
-  <!-- ── Single panel ── -->
   <div class="body">
     <div class="panel">
 
@@ -564,10 +547,9 @@ $products = [
         Payment Result
       </div>
 
-      <!-- Success badge -->
       <div class="success-badge">
         <div class="success-icon">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 24 24">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
         </div>
@@ -579,72 +561,81 @@ $products = [
 
       <hr class="divider">
 
-      <!-- Order info -->
       <div class="info-row">
         <span class="info-label">Order ID</span>
-        <span class="info-value"><?= htmlspecialchars($order_id) ?></span>
+        <span class="info-value"><?= htmlspecialchars($display_order_id) ?></span>
       </div>
       <div class="info-row">
         <span class="info-label">Date</span>
-        <span class="info-value"><?= htmlspecialchars($date) ?></span>
+        <span class="info-value"><?= htmlspecialchars($display_date) ?></span>
       </div>
       <div class="info-row" style="border-bottom:none">
         <span class="info-label">Total Amount</span>
         <span class="info-value"
-          style="color:#1d6fd8;font-size:1rem;font-weight:700"><?= htmlspecialchars($total) ?></span>
+          style="color:#007bff;font-size:1rem;font-weight:800"><?= htmlspecialchars($display_total) ?></span>
       </div>
 
       <hr class="divider">
 
-      <!-- Products ordered -->
       <div class="section-label">Products Ordered</div>
 
-      <div class="products-list">
-        <?php foreach ($products as $p): ?>
-          <div class="product-card">
-            <div class="product-img">
-              <img src="<?= htmlspecialchars($p['img']) ?>" alt="<?= htmlspecialchars($p['name']) ?>"
-                onerror="this.style.display='none';this.parentNode.textContent='<?= $p['emoji'] ?>'">
+      <?php if (empty($products)): ?>
+        <p style="color:#aaa;font-size:0.88rem;padding:12px 0">No product details available.</p>
+      <?php else: ?>
+        <div class="products-list">
+          <?php foreach ($products as $p): ?>
+            <div class="product-card">
+              <div class="product-img">
+                <img src="<?= htmlspecialchars($p['imageUrl']) ?>" alt="<?= htmlspecialchars($p['Product_name']) ?>"
+                  onerror="this.style.display='none';this.parentNode.textContent='📦'">
+              </div>
+              <div class="product-info">
+                <div class="product-name"><?= htmlspecialchars($p['Product_name']) ?></div>
+                <div class="product-desc">Unit price: RM <?= number_format($p['unitPrice'], 2) ?></div>
+              </div>
+              <div class="product-price">
+                RM <?= number_format($p['subtotal'], 2) ?>
+                <small>×<?= (int) $p['quantity'] ?></small>
+              </div>
             </div>
-            <div class="product-info">
-              <div class="product-name"><?= htmlspecialchars($p['name']) ?></div>
-              <ul class="product-specs">
-                <?php foreach ($p['specs'] as $spec): ?>
-                  <li><?= htmlspecialchars($spec) ?></li>
-                <?php endforeach; ?>
-              </ul>
-            </div>
-            <div class="product-price"><?= htmlspecialchars($p['price']) ?></div>
-          </div>
-        <?php endforeach; ?>
-      </div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
       <hr class="divider">
 
-      <!-- Totals -->
-      <div class="order-line"><span>Subtotal (<?= count($products) ?> items)</span><span>RM 5,030</span></div>
+      <?php
+      $subtotal = array_sum(array_column($products, 'subtotal'));
+      $tax = round($subtotal * 0.06);
+      ?>
+      <div class="order-line"><span>Subtotal (<?= count($products) ?>
+          item<?= count($products) !== 1 ? 's' : '' ?>)</span><span>RM <?= number_format($subtotal, 2) ?></span></div>
       <div class="order-line free"><span>Shipping</span><span>Free</span></div>
-      <div class="order-line"><span>Tax (6% SST)</span><span>RM 302</span></div>
+      <div class="order-line"><span>Tax (6% SST)</span><span>RM <?= number_format($tax, 2) ?></span></div>
       <hr class="divider">
-      <div class="order-line total"><span>Total</span><span><?= htmlspecialchars($total) ?></span></div>
+      <div class="order-line total"><span>Total</span><span><?= htmlspecialchars($display_total) ?></span></div>
 
       <hr class="divider">
 
-      <!-- Thank you -->
       <div class="thankyou">
         Thank you, <strong><?= htmlspecialchars($user_name) ?></strong>! Your payment has been successfully processed.
         You will receive an email confirmation shortly with the full details of your order.
       </div>
 
-      <a href="index.php" class="btn-home">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-        </svg>
-        Back to Home
-      </a>
+      <div>
+        <a href="index.php" class="btn-home">
+          <svg viewBox="0 0 24 24">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+          Back to Home
+        </a>
+        <a href="checkhistory.php" class="btn-history">View Order History</a>
+      </div>
 
-    </div><!-- end panel -->
-  </div><!-- end body -->
+    </div>
+  </div>
+  <?php include "footer.php"; ?>
+
 
 </body>
 
