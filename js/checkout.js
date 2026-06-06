@@ -1,5 +1,4 @@
-
-    let subtotal = <?= (float) $subtotal ?>;
+let subtotal = <?= (float) $subtotal ?>;
     let pendingRemoveBtn = null;
     let pendingRemovePrice = 0;
 
@@ -168,12 +167,14 @@ document.addEventListener('input', function (e) {
         const price = item.querySelector('.item-price').childNodes[0].textContent.trim();
         const imgSrc = item.querySelector('.item-thumb img')?.src || '';
 html += `<div class="modal-item">
-  <div class="modal-item-thumb" style="overflow:hidden;border-radius:8px;">
-    ${imgSrc ? `<img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;">` : '📦'}
+  <div class="modal-item-thumb modal-item-thumb-image-wrapper">
+    ${imgSrc ? `<img src="${imgSrc}" class="modal-item-image">` : '📦'}
   </div>
-  <div style="flex:1"><p style="font-size:0.85rem;font-weight:500;color:#111;margin:0 0 2px">${name}</p>
-  <small style="font-size:0.72rem;color:#777">${desc}</small></div>
-  <div style="font-size:0.88rem;font-weight:600;color:#111">${price}</div>
+  <div class="modal-item-details">
+    <p class="modal-item-name">${name}</p>
+    <small class="modal-item-qty">${desc}</small>
+  </div>
+  <div class="modal-item-price">${price}</div>
 </div>`;
       });
       document.getElementById('modalItems').innerHTML = html;
