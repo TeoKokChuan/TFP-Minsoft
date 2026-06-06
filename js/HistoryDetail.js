@@ -1,12 +1,4 @@
-const itemData = <?= json_encode(array_map(function ($i) {
-      return [
-        'id' => $i['Product_ID'],
-        'name' => $i['Product_name'],
-        'unitPrice' => (float) $i['unitPrice'],
-        'qty' => (int) $i['quantity'],
-        'isRefunded' => $i['item_status'] === 'Refunded'
-      ];
-    }, $items)) ?>;
+
 
     const selected = new Set();
 

@@ -10,13 +10,13 @@ require_once "php/RefundController.php";
 $user_id = (int) $_SESSION['User_ID'];
 $user_name = $_SESSION['User_Name'] ?? 'Customer';
 
-// ── Get order ID from session (set by paymentcheckout.php) ─────────────────
+
 $order_id = (int) ($_SESSION['payment']['order_id'] ?? 0);
 
-// Clear payment session
+
 unset($_SESSION['payment']);
 
-// ── Load order from DB ─────────────────────────────────────────────────────
+
 if ($order_id) {
   $ostmt = $conn->prepare("
         SELECT Order_ID, orderDate, TotalPrice, PaymentMethod
@@ -31,7 +31,6 @@ if ($order_id) {
   $order = null;
 }
 
-// ── Load items from bill_transaction JOIN product ──────────────────────────
 $products = [];
 if ($order_id) {
   $tstmt = $conn->prepare("
@@ -50,7 +49,6 @@ if ($order_id) {
   $tstmt->close();
 }
 
-// Fallback values if order not found
 $display_order_id = $order ? 'ORD-' . str_pad($order['Order_ID'], 5, '0', STR_PAD_LEFT) : 'N/A';
 $display_date = $order ? date('d M Y', strtotime($order['orderDate'])) : date('d M Y');
 $display_total = $order ? 'RM ' . number_format($order['TotalPrice'], 2) : 'RM 0.00';

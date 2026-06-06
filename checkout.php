@@ -5,14 +5,14 @@ require_once "php/OrderModal.php";
 
 $user_id = (int) $_SESSION['User_ID'];
 
-// ── Load user info ─────────────────────────────────────────────────────────
+
 $user_stmt = $conn->prepare("SELECT User_Name, Email, Phone, Address FROM user WHERE User_ID = ?");
 $user_stmt->bind_param('i', $user_id);
 $user_stmt->execute();
 $user_row = $user_stmt->get_result()->fetch_assoc();
 $user_stmt->close();
 
-// ── Load cart items ────────────────────────────────────────────────────────
+
 $cart_stmt = $conn->prepare("
     SELECT c.Cart_ID, c.cartQuantity, c.build_ref, p.Product_ID, p.Product_name, p.Price, p.imageUrl
     FROM cart c
@@ -28,15 +28,13 @@ while ($row = $cart_result->fetch_assoc()) {
 }
 $cart_stmt->close();
 
-// Check if any item has a build_ref (came from PC Builder)
 $has_build = !empty(array_filter($cart_items, fn($i) => !empty($i['build_ref'])));
 
-// Totals
+
 $subtotal = array_sum(array_map(fn($i) => $i['Price'] * $i['cartQuantity'], $cart_items));
 $tax = round($subtotal * 0.06);
 $total = $subtotal + $tax;
 
-// ── Form handling ──────────────────────────────────────────────────────────
 $errors = [];
 
 // Pre-fill from user record on first load

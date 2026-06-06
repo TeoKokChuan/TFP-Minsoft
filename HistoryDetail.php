@@ -4,7 +4,7 @@ require_once "php/database.php";
 require_once "php/ItemQueires.php";
 require_once "php/OrderModal.php";
 require_once "php/BillModal.php";
-require_once "php/RefundModal.php";
+require_once "php/RefundController.php";
 
 $order_id = (int)($_GET['id'] ?? 0);
 $user_id  = $_SESSION['User_ID'];
@@ -126,7 +126,7 @@ $sc = match ($status) {
         <?php foreach ($items as $idx => $item): ?>
           <?php
           $isRefunded = ($item['item_status'] === 'Refunded');
-          // 🚀 记录是否正在审核中
+   
           $isPendingRefund = (!empty($item['refund_review']) && !$isRefunded);
           ?>
 
@@ -330,7 +330,19 @@ $sc = match ($status) {
 
   <?php include "footer.php"; ?>
 
-  <script src="js/HistoryDetail.js"></script>
+ <script>
+const itemData = <?= json_encode(array_map(function ($i) {
+    return [
+        'id' => $i['Product_ID'],
+        'name' => $i['Product_name'],
+        'unitPrice' => (float)$i['unitPrice'],
+        'qty' => (int)$i['quantity'],
+        'isRefunded' => $i['item_status'] === 'Refunded'
+    ];
+}, $items)) ?>;
+</script>
+
+<script src="js/HistoryDetail.js"></script>
 
 </body>
 

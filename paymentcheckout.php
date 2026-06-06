@@ -10,7 +10,6 @@ $checkout = $_SESSION['checkout'];
 $total = (float) ($_SESSION['checkout_total'] ?? 0);
 $subtotal = (float) ($_SESSION['checkout_subtotal'] ?? 0);
 
-// ── Form handling ──────────────────────────────────────────────────────────
 $errors = [];
 $v = $_POST ?? [];
 
@@ -53,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   if (empty($errors)) {
 
-    // ── 1. Insert into customer_order ──────────────────────────────────
     $order_stmt = $conn->prepare(
       "INSERT INTO customer_order (User_ID, orderStatus, orderDate, TotalPrice, PaymentMethod)
              VALUES (?, 'Pending', NOW(), ?, 'Credit Card')"
@@ -63,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $order_id = $conn->insert_id;
     $order_stmt->close();
 
-    // ── 2. Insert into bill_master ─────────────────────────────────────
     $shipping_addr = $_SESSION['checkout_address'] ?? $checkout['address1'];
     $user_name = $checkout['user_name'] ?? '';
 
@@ -75,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $bill_stmt->execute();
     $bill_stmt->close();
 
-    // ── 3. Fetch cart and insert into bill_transaction ─────────────────
+
     $cart_stmt = $conn->prepare(
       "SELECT c.Product_ID, c.cartQuantity, p.Price
              FROM cart c
@@ -110,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stock_stmt->bind_param('iii',
         $row['cartQuantity'],
         $row['Product_ID'],
-        $row['cartQuantity']   // safety: only reduce if enough stock
+        $row['cartQuantity']   
     );
     $stock_stmt->execute();
     $stock_stmt->close();
@@ -118,13 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cart_stmt->close();
     $tx_stmt->close();
 
-    // ── 4. Clear cart ──────────────────────────────────────────────────
     $del_stmt = $conn->prepare("DELETE FROM cart WHERE User_ID = ?");
     $del_stmt->bind_param('i', $user_id);
     $del_stmt->execute();
     $del_stmt->close();
 
-    // ── 5. Store order ID for result page (no card data stored) ────────
     $_SESSION['payment'] = [
       'order_id' => $order_id,
       'method' => 'Credit Card',
