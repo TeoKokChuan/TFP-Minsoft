@@ -1,16 +1,9 @@
 <?php
-session_start();
-include "database.php";
+require_once "php/auth.php";
+require_once "php/database.php";
 
-// ── Guards ─────────────────────────────────────────────────────────────────
-if (!isset($_SESSION['User_ID'])) {
-  header('Location: login.php');
-  exit;
-}
-if (!isset($_SESSION['checkout'])) {
-  header('Location: checkout.php');
-  exit;
-}
+require_once "php/OrderModal.php";
+require_once "php/BillModal.php";
 
 $user_id = (int) $_SESSION['User_ID'];
 $checkout = $_SESSION['checkout'];

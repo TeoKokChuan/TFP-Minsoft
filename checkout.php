@@ -1,12 +1,8 @@
 <?php
-session_start();
-include "database.php";
+require_once "php/auth.php";
+require_once "php/database.php";
+require_once "php/OrderModal.php";
 
-// ── Guard: must be logged in ───────────────────────────────────────────────
-if (!isset($_SESSION['User_ID'])) {
-  header('Location: login.php');
-  exit;
-}
 $user_id = (int) $_SESSION['User_ID'];
 
 // ── Load user info ─────────────────────────────────────────────────────────

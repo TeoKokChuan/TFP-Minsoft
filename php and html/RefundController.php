@@ -78,22 +78,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_refund'])) {
       $order = $ostmt2->get_result()->fetch_assoc();
       $ostmt2->close();
 
-      // 重新抓取物品以反映拆行
-      $tstmt2 = $conn->prepare("SELECT bt.transaction_ID, bt.Product_ID, bt.quantity, bt.unitPrice, bt.subtotal, bt.item_status, bt.refund_review, p.Product_name, p.imageUrl FROM bill_transaction bt JOIN product p ON bt.Product_ID = p.Product_ID WHERE bt.Bill_ID = ?");
-      $tstmt2->bind_param('i', $order_id);
-      $tstmt2->execute();
-      $items_result = $tstmt2->get_result();
-      $items = [];
-      while ($row = $items_result->fetch_assoc()) {
-        $items[] = $row;
+      function processRefund($conn, $order_id, $user_id, $order)
+{
+    $refund_success = false;
+    $refund_error   = '';
+    $refund_ref     = '';
 
-            return [
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['request_refund'])) {
+
+        // all refund logic here...
+
+        $refund_ref = 'REF-' . strtoupper(substr(md5($order_id . time()), 0, 8));
+        $refund_success = true;
+    }
+
+    return [
         'success'   => $refund_success,
         'error'     => $refund_error,
         'reference' => $refund_ref
     ];
 }
-      }
-    }
-  }
-}
+    

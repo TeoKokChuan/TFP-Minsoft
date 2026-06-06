@@ -1,11 +1,12 @@
 <?php
-session_start();
-include "database.php";
+require_once "php/auth.php";
+require_once "php/database.php";
 
-if (!isset($_SESSION['User_ID'])) {
-  header('Location: login.php');
-  exit;
-}
+require_once "php/ItemQueries.php";
+require_once "php/OrderModal.php";
+require_once "php/BillModal.php";
+require_once "php/RefundController.php";
+
 $user_id = (int) $_SESSION['User_ID'];
 $user_name = $_SESSION['User_Name'] ?? 'Customer';
 

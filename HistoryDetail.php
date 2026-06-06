@@ -1,13 +1,10 @@
 <?php
-
-require_once '../includes/auth.php';
-require_once '../includes/database.php';
-
-require_once '../models/OrderModel.php';
-require_once '../models/BillModel.php';
-require_once '../models/ProductModel.php';
-
-require_once '../controllers/RefundController.php';
+require_once "php/auth.php";
+require_once "php/database.php";
+require_once "php/ItemQueires.php";
+require_once "php/OrderModal.php";
+require_once "php/BillModal.php";
+require_once "php/RefundModal.php";
 
 $order_id = (int)($_GET['id'] ?? 0);
 $user_id  = $_SESSION['User_ID'];
@@ -49,8 +46,7 @@ $sc = match ($status) {
     'refunded'               => 'refunded',
     default                  => 'pending'
 };
-
->?
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -58,7 +54,7 @@ $sc = match ($status) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Order Detail — Minsoft Solution</title>
-  <link rel="stylesheet" href="css/PaymentResult.css">
+  
     
 </head>
 
